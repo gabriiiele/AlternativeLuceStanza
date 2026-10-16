@@ -414,7 +414,11 @@ function toolMove(e) {
       if (d.part === 'rx') c.rx = Math.max(0.01, Math.abs(lx)); else c.ry = Math.max(0.01, Math.abs(ly));
     }
     redraw();
-  } else if (tool.mode === 'blur') { const ic = T.toIc(x, y); params.lbX = ic[0]; params.lbY = ic[1]; redraw(); }
+  } else if (tool.mode === 'blur') {
+    const ic = T.toIc(x, y); params.lbX = ic[0]; params.lbY = ic[1];
+    if (params.lbType === 'depth') params.lbFocus = depthAt(ic);
+    redraw();
+  }
   else if (tool.mode === 'guide') { const ic = T.toIc(x, y); guideDraft[2] = ic[0]; guideDraft[3] = ic[1]; drawOverlay(); }
 }
 
@@ -525,7 +529,7 @@ function drawOverlay() {
     }
   }
 
-  if (tool.mode === 'blur' && params.lbAmt > 0) {
+  if (tool.mode === 'blur' && params.lbAmt > 0 && params.lbType !== 'depth') {
     const ctr = T.fromIc([params.lbX, params.lbY]);
     ctx.strokeStyle = '#fff'; ctx.fillStyle = '#4da3ff';
     ctx.beginPath(); ctx.arc(ctr[0], ctr[1], 8, 0, 7); ctx.fill();

@@ -16,6 +16,7 @@ const newComp = (type, op = 'add') => ({
     brush: {},
     color: { rgb: [0.5, 0.5, 0.5], range: 0.5 },
     lum: { lo: 0.6, hi: 1, smooth: 0.15 },
+    depth: { lo: 0.6, hi: 1, smooth: 0.1 },
   })[type],
 });
 const newMask = (type, n) => ({ id: Date.now() + '-' + maskSeq++, name: 'Maschera ' + n, on: 1, invert: 0, amount: 1,
@@ -45,7 +46,7 @@ const defaults = () => ({
   // calibrazione
   calSh: 0, calRH: 0, calRS: 0, calGH: 0, calGS: 0, calBH: 0, calBS: 0,
   // sfocatura obiettivo
-  lbAmt: 0, lbType: 'radial', lbX: 0.5, lbY: 0.5, lbSize: 0.15, lbAngle: 0, lbFeather: 0.3, lbBokeh: 0,
+  lbAmt: 0, lbType: 'radial', lbX: 0.5, lbY: 0.5, lbSize: 0.15, lbAngle: 0, lbFeather: 0.3, lbBokeh: 0, lbFocus: 0.8,
   // geometria
   geo: { angle: 0, trot: 0, rot: 0, fx: 0, fy: 0, vert: 0, horiz: 0, distort: 0, aspAdj: 0, scale: 1, ox: 0, oy: 0,
     constrain: 1, ratio: 'orig', custom: [4, 5], crop: [0, 0, 1, 1], guides: [], grid: 'thirds' },
@@ -68,7 +69,7 @@ const GROUPS = {
   'Dettagli': ['sharp', 'sharpRad', 'sharpDetail', 'sharpMask', 'nrLum', 'nrLumDetail', 'nrLumContrast', 'nrCol', 'nrColDetail', 'nrColSmooth'],
   'Ottica': ['caR', 'caB', 'defP', 'defPLo', 'defPHi', 'defG', 'defGLo', 'defGHi', 'lensDist', 'lensVig', 'lensVigMid'],
   'Calibrazione': ['calSh', 'calRH', 'calRS', 'calGH', 'calGS', 'calBH', 'calBS'],
-  'Sfocatura obiettivo': ['lbAmt', 'lbType', 'lbX', 'lbY', 'lbSize', 'lbAngle', 'lbFeather', 'lbBokeh'],
+  'Sfocatura obiettivo': ['lbAmt', 'lbType', 'lbX', 'lbY', 'lbSize', 'lbAngle', 'lbFeather', 'lbBokeh', 'lbFocus'],
   'Geometria e ritaglio': ['geo'],
   'Maschere': ['masks'],
   'Ritocco': ['spots'],

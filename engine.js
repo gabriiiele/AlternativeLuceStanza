@@ -144,6 +144,7 @@ class Engine {
     this.lutTex = this.makeTex(); this.blank(this.lutTex);
     this.maskTex = [this.makeTex(), this.makeTex()]; this.maskTex.forEach(t => this.blank(t));
     this.brushTex = this.makeTex(); this.blank(this.brushTex);
+    this.depthTex = this.makeTex(); this.blank(this.depthTex); this.hasDepth = false;
     this.size = [1, 1]; this.lutSize = 0;
     this.srcTex = this.imgTex;
     this.rtKey = ''; this.mkKey = ''; this.maskRes = [1, 1];
@@ -224,7 +225,18 @@ class Engine {
     this.mkA = this.target(...this.maskRes); this.mkB = this.target(...this.maskRes);
     this.maskTex = [this.mkA.tex, this.mkB.tex];
     this.srcTex = this.imgTex; this.rtKey = ''; this.mkKey = 'x';
+    this.clearDepth();
   }
+
+  /* Mappa di profondità (canvas in scala di grigi, chiaro = vicino) */
+  setDepth(canvas) {
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, this.depthTex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+    this.hasDepth = true; this.mkKey = 'x';
+  }
+  clearDepth() { this.blank(this.depthTex); this.hasDepth = false; this.mkKey = 'x'; }
 
   /* data: Uint8Array RGBA con indice (g * N*N + b * N + r) * 4 */
   setLut(data, n) {
@@ -281,20 +293,20 @@ class Engine {
     masks.slice(0, MAX_MASKS).forEach((m, i) => {
       if (!m.on || !m.comps.length) return;
       const comps = m.comps.slice(0, MAX_COMPS), A = new Float32Array(24), B = new Float32Array(24), C = new Float32Array(24);
-      const T = { linear: 1, radial: 2, brush: 3, color: 4, lum: 5 }, OP = { add: 0, sub: 1, int: 2 };
+      const T = { linear: 1, radial: 2, brush: 3, color: 4, lum: 5, depth: 6 }, OP = { add: 0, sub: 1, int: 2 };
       comps.forEach((c, j) => {
         A.set([T[c.type], OP[c.op], c.invert ? 1 : 0, 0], j * 4);
         if (c.type === 'linear') B.set([c.x, c.y, c.angle * Math.PI / 180, c.width], j * 4);
         else if (c.type === 'radial') { B.set([c.x, c.y, c.angle * Math.PI / 180, c.feather], j * 4); C.set([c.rx, c.ry, 0, 0], j * 4); }
         else if (c.type === 'color') B.set([...c.rgb, c.range], j * 4);
-        else if (c.type === 'lum') B.set([c.lo, c.hi, c.smooth, 0], j * 4);
+        else if (c.type === 'lum' || c.type === 'depth') B.set([c.lo, c.hi, c.smooth, 0], j * 4);
       });
       if (brushes[i]) {
         gl.bindTexture(gl.TEXTURE_2D, this.brushTex);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, brushes[i]);
       } else this.blank(this.brushTex);
-      this.bind(1, this.brushTex, u.uBrush);
+      this.bind(1, this.brushTex, u.uBrush); this.bind(2, this.depthTex, u.uDepth);
       this.bind(0, this.srcTex, u.uImg);
       gl.uniform1i(u.uNC, comps.length); gl.uniform1f(u.uInv, m.invert ? 1 : 0);
       gl.uniform4fv(u.uCA, A); gl.uniform4fv(u.uCB, B); gl.uniform4fv(u.uCC, C);
@@ -338,7 +350,7 @@ class Engine {
     gl.viewport(0, 0, width, height);
     this.setCurves(p);
     this.bind(0, this.srcTex, u.uImg); this.bind(1, this.curveTex, u.uCurve); this.bind(2, this.lutTex, u.uLut);
-    this.bind(3, this.maskTex[0], u.uMask0); this.bind(4, this.maskTex[1], u.uMask1);
+    this.bind(3, this.maskTex[0], u.uMask0); this.bind(4, this.maskTex[1], u.uMask1); this.bind(5, this.depthTex, u.uDepth);
 
     const G = this.lastGeo = geoInfo(p.geo, sw, sh, !!opts.full);
     const f1 = (n, x) => gl.uniform1f(u[n], x), f2 = (n, a) => gl.uniform2fv(u[n], a);
@@ -365,7 +377,8 @@ class Engine {
     gl.uniform3fv(u.uNrC, [p.nrCol, p.nrColDetail, p.nrColSmooth]);
     gl.uniform4fv(u.uVigP, [p.vig, p.vigMid, p.vigRound, p.vigFeather]);
     gl.uniform3fv(u.uGrainP, [p.grain, p.grainSize, p.grainRough]);
-    gl.uniform4fv(u.uBlurA, [p.lbAmt, p.lbType === 'linear' ? 1 : 0, p.lbX, p.lbY]);
+    gl.uniform4fv(u.uBlurA, [p.lbAmt, { radial: 0, linear: 1, depth: this.hasDepth ? 2 : 0 }[p.lbType], p.lbX, p.lbY]);
+    f1('uLbFocus', p.lbFocus);
     gl.uniform4fv(u.uBlurB, [p.lbSize, p.lbAngle * Math.PI / 180, p.lbFeather, p.lbBokeh]);
     f1('uLutAmt', this.lutSize > 0 ? p.lutAmt : 0); f1('uLutSize', this.lutSize || 2);
     const MK = new Float32Array(MAX_MASKS * 20);

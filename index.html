@@ -3,45 +3,61 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#111111">
+<meta name="theme-color" content="#1a1a1a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Luce Stanza</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg">
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
-<header>
-  <button id="btnOpen">Apri</button>
-  <input id="file" type="file" accept="image/*" hidden>
-  <input id="fileLut" type="file" accept=".cube" hidden>
-  <input id="filePreset" type="file" accept=".xmp,.lrtemplate,.json" multiple hidden>
-  <input id="fileWm" type="file" accept="image/*" hidden>
-  <span class="spacer"></span>
-  <button id="btnUndo" disabled>↶</button>
-  <button id="btnRedo" disabled>↷</button>
-  <button id="btnCompare" disabled>Prima/Dopo</button>
-  <button id="btnExport" class="primary" disabled>Esporta</button>
-</header>
+<body data-theme="dark">
+<input id="file" type="file" accept="image/*,.dng,.cr2,.cr3,.crw,.nef,.nrw,.arw,.srf,.sr2,.raf,.orf,.rw2,.pef,.srw,.3fr,.iiq,.x3f,.erf,.kdc,.mrw,.dcr,.mos,.rwl" multiple hidden>
+<input id="fileLut" type="file" accept=".cube" hidden>
+<input id="filePreset" type="file" accept=".xmp,.lrtemplate,.json" multiple hidden>
+<input id="fileWm" type="file" accept="image/*" hidden>
 
-<main id="stage">
-  <canvas id="view"></canvas>
-  <canvas id="ov"></canvas>
-  <canvas id="hist" width="120" height="56" hidden></canvas>
-  <div id="empty">Apri una foto per iniziare</div>
-  <div id="toast" hidden></div>
-</main>
+<!-- Libreria -->
+<div id="libraryView" class="view">
+  <header id="libTop" class="topbar"></header>
+  <div id="libStatus" class="status" hidden></div>
+  <main id="libBody"></main>
+  <div id="selBar" class="selbar" hidden></div>
+  <button id="fab" class="fab" title="Importa foto">＋</button>
+  <nav id="libNav" class="bottomnav"></nav>
+</div>
 
-<nav id="tabs"></nav>
-<section id="panel"></section>
+<!-- Editor -->
+<div id="editorView" class="view" hidden>
+  <header class="topbar">
+    <button id="btnBack" class="ibtn" title="Libreria">‹</button>
+    <span id="edTitle" class="title"></span>
+    <button id="btnUndo" class="ibtn" disabled>↶</button>
+    <button id="btnRedo" class="ibtn" disabled>↷</button>
+    <button id="btnCompare" class="ibtn" title="Tieni premuto per vedere l'originale" disabled>◐</button>
+    <button id="btnExport" class="ibtn primary" title="Esporta" disabled>⇪</button>
+  </header>
+  <main id="stage">
+    <canvas id="view"></canvas>
+    <canvas id="ov"></canvas>
+    <canvas id="hist" width="120" height="56" hidden></canvas>
+    <div id="empty"></div>
+  </main>
+  <nav id="tabs" class="subtabs"></nav>
+  <section id="panel"></section>
+  <nav id="tools" class="toolbar"></nav>
+</div>
+<div id="toast" hidden></div>
 
 <script src="shaders.js"></script>
 <script src="engine.js"></script>
 <script src="profiles.js"></script>
 <script src="presets.js"></script>
 <script src="state.js"></script>
+<script src="db.js"></script>
 <script src="tools.js"></script>
 <script src="export.js"></script>
+<script src="ai.js"></script>
 <script src="app.js"></script>
+<script src="library.js"></script>
 </body>
 </html>

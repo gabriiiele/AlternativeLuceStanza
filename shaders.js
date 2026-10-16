@@ -83,7 +83,7 @@ void main(){
 
 /* ---------- Maschere: calcola una maschera (fino a 6 componenti) in un canale ---------- */
 const SH_MASK = SH_COMMON + `
-uniform sampler2D uImg, uBrush;
+uniform sampler2D uImg, uBrush, uDepth;
 uniform float uSa;
 uniform int uNC;
 uniform float uInv;
@@ -114,8 +114,8 @@ void main(){
       float d = dh * 2.5 * (0.3 + 0.7 * min(a.y, b.y) * 2.0) + abs(a.y - b.y) * 0.6 + abs(a.z - b.z) * 0.35;
       float rg = uCB[i].w;
       w = 1.0 - smoothstep(rg * 0.35, rg * 0.35 + 0.05 + rg * 0.25, d);
-    } else {                             // intervallo luminanza: minimo, massimo, morbidezza
-      float l = luma(texture2D(uImg, v).rgb), s = max(uCB[i].z, 0.001);
+    } else {                             // intervallo luminanza (5) o profondità (6): minimo, massimo, morbidezza
+      float l = t < 5.5 ? luma(texture2D(uImg, v).rgb) : texture2D(uDepth, v).r, s = max(uCB[i].z, 0.001);
       w = smoothstep(uCB[i].x - s, uCB[i].x, l) * (1.0 - smoothstep(uCB[i].y, uCB[i].y + s, l));
     }
     if (uCA[i].z > 0.5) w = 1.0 - w;
@@ -128,7 +128,7 @@ void main(){
 
 /* ---------- Pipeline principale ---------- */
 const SH_MAIN = SH_COMMON + `
-uniform sampler2D uImg, uCurve, uLut, uMask0, uMask1;
+uniform sampler2D uImg, uCurve, uLut, uMask0, uMask1, uDepth;
 uniform vec2 uTexel;
 uniform float uSa, uOutAspect;
 // geometria
@@ -160,6 +160,7 @@ uniform vec3 uGrainP;      // quantità, dimensione, ruvidità
 uniform float uGlow, uHal, uCa;
 uniform vec4 uBlurA;       // quantità, tipo, x, y
 uniform vec4 uBlurB;       // dimensione, angolo, sfumatura, bokeh
+uniform float uLbFocus;    // profondità a fuoco (modo profondità)
 uniform float uLutAmt, uLutSize;
 // maschere
 uniform vec4 uMk[40];      // 8 maschere x 5 vec4
@@ -244,9 +245,11 @@ void main(){
     vec2 p = (ic - uBlurA.zw) * vec2(uSa, 1.0);
     float ca = cos(uBlurB.y), sn = sin(uBlurB.y), d;
     vec2 r = vec2(ca * p.x + sn * p.y, -sn * p.x + ca * p.y);
-    d = uBlurA.y < 0.5 ? length(r) : abs(r.y);
+    float far = 1.0;
+    if (uBlurA.y > 1.5) { d = abs(texture2D(uDepth, uv).r - uLbFocus); far = clamp(d * 3.0, 0.3, 1.0); }   // 2 = mappa di profondità
+    else d = uBlurA.y < 0.5 ? length(r) : abs(r.y);
     float focus = 1.0 - smoothstep(uBlurB.x, uBlurB.x + 0.02 + uBlurB.z * 0.5, d);
-    float rad = uBlurA.x * (1.0 - focus) * 0.03;
+    float rad = uBlurA.x * (1.0 - focus) * 0.03 * far;
     if (rad > 0.0005) {
       vec3 acc = vec3(0.0); float ws = 0.0;
       for (int k = 0; k < 32; k++) {

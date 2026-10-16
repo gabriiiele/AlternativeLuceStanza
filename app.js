@@ -12,9 +12,24 @@ const BG = {
   sat: 'linear-gradient(90deg,#888,#f44)', exp: 'linear-gradient(90deg,#000,#fff)',
 };
 
-const TAB_ORDER = ['Preset', 'Profili', 'Luce', 'Curva', 'Colore', 'Mixer', 'Colore punto', 'Gradazione', 'B&N', 'Effetti',
-  'Dettagli', 'Ottica', 'Ritaglio', 'Trasforma', 'Sfocatura', 'Maschere', 'Ritocco', 'Calibrazione', 'LUT',
-  'Versioni', 'Cronologia', 'Info', 'Esporta'];
+/* Barra strumenti in stile Lightroom: ogni strumento raggruppa uno o più pannelli */
+const TOOLS = [
+  { label: 'Preset', icon: 'M4 6h16M4 12h16M4 18h10', subs: ['Preset', 'Profili'] },
+  { label: 'AI', icon: 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2zM19 15l1 2 2 1-2 1-1 2-1-2-2-1 2-1z', subs: ['Look AI', 'Super Resolution', 'Profondità'] },
+  { label: 'Auto', icon: 'M4 20l6-16h4l6 16M7 14h10', action: () => autoTone() },
+  { label: 'Luce', icon: 'M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM12 1v3M12 20v3M1 12h3M20 12h3M4 4l2 2M18 18l2 2M4 20l2-2M18 6l2-2', subs: ['Luce', 'Curva'] },
+  { label: 'Colore', icon: 'M12 3a9 9 0 1 0 0 18c1 0 2-1 2-2 0-2 2-2 3-2a4 4 0 0 0 4-4c0-6-4-10-9-10zM7 12h.01M9 7h.01M15 7h.01', subs: ['Colore', 'Mixer', 'Colore punto', 'Gradazione', 'B&N'] },
+  { label: 'Effetti', icon: 'M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3z', subs: ['Effetti'] },
+  { label: 'Dettagli', icon: 'M3 3l18 18M3 12h4M17 12h4M12 3v4M12 17v4', subs: ['Dettagli'] },
+  { label: 'Ottica', icon: 'M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', subs: ['Ottica'] },
+  { label: 'Geometria', icon: 'M4 20L8 4h8l4 16zM9 12h6', subs: ['Trasforma'] },
+  { label: 'Ritaglio', icon: 'M6 2v16h16M2 6h16v16', subs: ['Ritaglio'] },
+  { label: 'Maschere', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 3v18', subs: ['Maschere'] },
+  { label: 'Ritocco', icon: 'M4 20l10-10M14 4l6 6-4 4-6-6zM4 20h5', subs: ['Ritocco'] },
+  { label: 'Sfocatura', icon: 'M12 6a6 6 0 1 0 0 12 6 6 0 0 0 0-12zM3 12h.01M21 12h.01M12 3h.01M12 21h.01', subs: ['Sfocatura'] },
+  { label: 'Altro', icon: 'M5 12h.01M12 12h.01M19 12h.01', subs: ['Calibrazione', 'LUT', 'Versioni', 'Cronologia', 'Info', 'Esporta'] },
+];
+const TAB_ORDER = TOOLS.flatMap(t => t.subs || []);
 
 const $ = id => document.getElementById(id);
 let params = defaults();
@@ -110,7 +125,7 @@ function pushHistory(label, state) {
   history.undo.push({ label, state });
   if (history.undo.length > 200) history.undo.shift();
   history.redo.length = 0;
-  syncButtons();
+  syncButtons(); scheduleSave();
 }
 const commit = label => pushHistory(label, clone(params));
 
@@ -135,7 +150,7 @@ function syncButtons() {
   $('btnRedo').disabled = !history.redo.length;
   for (const id of ['btnCompare', 'btnExport']) $(id).disabled = !loaded;
 }
-function applyState(s) { params = clone(s); renderPanel(); redraw(); syncButtons(); }
+function applyState(s) { params = clone(s); renderPanel(); redraw(); syncButtons(); scheduleSave(); }
 
 /* ---------- Disegno ---------- */
 
@@ -208,11 +223,22 @@ function syncToolMode() {
 /* ---------- Schede ---------- */
 
 function renderTabs() {
-  const nav = $('tabs'); nav.innerHTML = '';
-  for (const name of TAB_ORDER)
-    nav.append(el('button', { textContent: name, className: name === curTab ? 'on' : '',
-      onclick: () => { curTab = name; renderTabs(); renderPanel(); } }));
+  const tool = TOOLS.find(t => t.subs?.includes(curTab));
+  const nav = $('tools'); nav.innerHTML = '';
+  for (const t of TOOLS) {
+    const b = el('button', { className: 'toolbtn' + (t === tool ? ' on' : ''), onclick: () => {
+      if (t.action) { t.action(); return; }
+      curTab = t.subs.includes(curTab) ? curTab : t.subs[0]; renderTabs(); renderPanel();
+    } });
+    const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('viewBox', '0 0 24 24'); sv.classList.add('ic');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', t.icon); sv.append(path);
+    b.append(sv, el('span', { textContent: t.label }));
+    nav.append(b);
+  }
   nav.querySelector('.on')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  const sub = $('tabs'); sub.innerHTML = ''; sub.hidden = !tool || tool.subs.length < 2;
+  if (tool) for (const name of tool.subs)
+    sub.append(el('button', { textContent: name, className: name === curTab ? 'on' : '', onclick: () => { curTab = name; renderTabs(); renderPanel(); } }));
 }
 
 const PANELS = {};
@@ -530,15 +556,20 @@ PANELS['Trasforma'] = p => {
 /* Sfocatura obiettivo (zona di messa a fuoco manuale) */
 PANELS['Sfocatura'] = p => {
   p.append(S('lbAmt', 'Intensità sfocatura', 0, 1),
-    chips([['radial', 'Fuoco circolare'], ['linear', 'Fuoco a fascia (tilt-shift)']], params.lbType, v => { commit('Sfocatura'); params.lbType = v; renderPanel(); }),
+    chips([['depth', 'Profondità AI'], ['radial', 'Fuoco circolare'], ['linear', 'Fuoco a fascia (tilt-shift)']], params.lbType, v => {
+      if (v === 'depth' && !engine.hasDepth) { curTab = 'Profondità'; renderTabs(); renderPanel(); toast('Calcola prima la mappa di profondità'); return; }
+      commit('Sfocatura'); params.lbType = v; renderPanel();
+    }),
+    params.lbType === 'depth' ? S('lbFocus', 'Profondità a fuoco', 0, 1, 0.01, { bg: 'linear-gradient(90deg,#000,#fff)' }) : null,
     S('lbSize', 'Intervallo di fuoco', 0, 0.8), S('lbFeather', 'Transizione', 0, 1),
     params.lbType === 'linear' ? S('lbAngle', 'Angolo', -90, 90, 1) : null,
     S('lbBokeh', 'Luci del bokeh', 0, 1),
-    note('Tocca o trascina sull\'immagine per scegliere il punto a fuoco. La zona è disegnata a mano, senza mappa di profondità AI.'));
+    note(params.lbType === 'depth' ? 'Tocca il soggetto da mettere a fuoco: la sfocatura segue la distanza stimata dalla mappa di profondità.'
+      : 'Tocca o trascina sull\'immagine per scegliere il punto a fuoco.'));
 };
 
 /* Maschere */
-const MASK_TYPES = [['brush', 'Pennello'], ['linear', 'Sfumatura lineare'], ['radial', 'Sfumatura radiale'], ['color', 'Intervallo colore'], ['lum', 'Intervallo luminanza']];
+const MASK_TYPES = [['brush', 'Pennello'], ['linear', 'Sfumatura lineare'], ['radial', 'Sfumatura radiale'], ['color', 'Intervallo colore'], ['lum', 'Intervallo luminanza'], ['depth', 'Intervallo profondità']];
 const selectedComp = () => params.masks[maskIdx]?.comps[compIdx];
 
 PANELS['Maschere'] = p => {
@@ -607,6 +638,13 @@ PANELS['Maschere'] = p => {
     if (c.type === 'radial') { C('rx', 'Larghezza', 0.01, 1.5, 0.01, 0.25); C('ry', 'Altezza', 0.01, 1.5, 0.01, 0.25); C('angle', 'Angolo', -180, 180, 1); C('feather', 'Sfumatura', 0, 1, 0.01, 0.5); p.append(note('Trascina i punti blu per spostarla o ridimensionarla.')); }
     if (c.type === 'color') { C('range', 'Ampiezza intervallo', 0.02, 1, 0.01, 0.5); p.append(actions(btn('Campiona colore', pickForComp))); }
     if (c.type === 'lum') { C('lo', 'Minimo', 0, 1); C('hi', 'Massimo', 0, 1, 0.01, 1); C('smooth', 'Morbidezza', 0, 0.5, 0.01, 0.15); p.append(actions(btn('Campiona luminanza', pickForComp))); }
+    if (c.type === 'depth') {
+      if (!engine.hasDepth) p.append(note('Serve la mappa di profondità: AI → Profondità.'));
+      C('lo', 'Da (lontano)', 0, 1); C('hi', 'A (vicino)', 0, 1, 0.01, 1); C('smooth', 'Morbidezza', 0, 0.5, 0.01, 0.1);
+      p.append(actions(btn('Campiona profondità', () => startPick('Tocca la zona da selezionare', ({ ic }) => {
+        const d = depthAt(ic); commit('Campiona'); c.lo = Math.max(0, d - 0.12); c.hi = Math.min(1, d + 0.12); renderPanel();
+      }))));
+    }
     if (c.type === 'brush') {
       p.append(actions(toggle('Dipingi sull\'immagine', () => brushMode, v => { brushMode = v; }, true),
         toggle('Gomma', () => brushOpts.erase, v => { brushOpts.erase = v; }, true),
@@ -665,6 +703,124 @@ PANELS['Ritocco'] = p => {
 };
 
 /* Calibrazione */
+let depthData = null;
+function depthAt(ic) {
+  if (!depthData) return 0.5;
+  const { w, h, d } = depthData, x = Math.round(ic[0] * (w - 1)), y = Math.round(ic[1] * (h - 1));
+  return d[(Math.max(0, Math.min(h - 1, y)) * w + Math.max(0, Math.min(w - 1, x))) * 4] / 255;
+}
+function setDepthCanvas(c) {
+  engine.setDepth(c);
+  depthData = { w: c.width, h: c.height, d: c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data };
+}
+
+/* ---------- AI ---------- */
+
+function progressBar() {
+  const bar = el('div', { className: 'progress' }, el('i'));
+  bar.set = (v, label) => { bar.firstChild.style.width = Math.round(v * 100) + '%'; bar.dataset.label = label || ''; };
+  return bar;
+}
+
+let lookPrompt = '', lookLast = null, aiBusy = false;
+PANELS['Look AI'] = p => {
+  const ta = el('textarea', { className: 'prompt', placeholder: 'Descrivi il look: es. "cinematografico freddo con ombre verde petrolio e pelle calda", "pellicola anni 70 sbiadita", "notte cyberpunk con neon rosa"', value: lookPrompt });
+  ta.oninput = () => { lookPrompt = ta.value; };
+  const usingClaude = !!aiSettings.apiKey;
+  p.append(ta, actions(btn(aiBusy ? 'Elaborazione…' : 'Crea look', () => runLook(), 'primary'),
+    lookLast ? btn('Salva come preset', saveLookAsPreset) : null),
+    note(usingClaude ? `Interpretato da ${aiSettings.model.replace('claude-', 'Claude ').replace(/-/g, ' ')}, che guarda la foto e adatta il look (anche con maschere su cielo o soggetto).`
+      : 'Motore offline a parole chiave. Per far interpretare la richiesta a Claude, che vede la foto, inserisci la chiave API in Libreria → Impostazioni.'),
+    lookLast ? el('div', { className: 'card' }, el('b', { textContent: lookLast.name }), el('p', { textContent: lookLast.explanation })) : null,
+    lookLast ? slider('Intensità', 0, 1.5, 0.01, () => lookLast.amt, v => { lookLast.amt = v; params = blendLook(lookLast, v); }, { neutral: 1 }) : null);
+};
+
+function blendLook(L, amt) {
+  const out = clone(L.base), d0 = defaults();
+  for (const k of Object.keys(d0)) {
+    if (typeof d0[k] !== 'number' || /H$/.test(k)) { if (/H$/.test(k)) out[k] = L.result[k]; continue; }
+    out[k] = L.base[k] + (L.result[k] - L.base[k]) * amt;
+  }
+  out.hsl = L.base.hsl.map((v, i) => v + (L.result.hsl[i] - v) * amt);
+  out.curve = lerpCurve(L.result.curve, amt);
+  out.masks = clone(L.result.masks);
+  for (const m of out.masks) if (m.ai) m.amount = amt;
+  return out;
+}
+
+async function runLook() {
+  if (aiBusy || !lookPrompt.trim()) { if (!lookPrompt.trim()) toast('Scrivi prima una descrizione'); return; }
+  aiBusy = true; renderPanel();
+  const before = clone(params);
+  try {
+    let result, name, explanation;
+    if (aiSettings.apiKey) {
+      const look = await lookFromClaude(lookPrompt, curSrc);
+      result = lookToParams(look, params); name = look.name; explanation = look.explanation;
+    } else {
+      const r = lookFromRules(lookPrompt);
+      result = buildPreset(r.def, 1); copyGroups(params, result, LOCAL_GROUPS); result.lutAmt = params.lutAmt;
+      name = lookPrompt.slice(0, 40); explanation = r.used.length ? 'Riconosciuto: ' + r.used.join(', ') + '.' : 'Nessuna parola chiave riconosciuta: ho solo corretto l\'esposizione.';
+    }
+    pushHistory('Look AI', before);
+    lookLast = { name, explanation, result, base: before, amt: 1 };
+    params = clone(result);
+  } catch (e) { alert('Look AI: ' + e.message); console.error(e); }
+  aiBusy = false; renderPanel();
+}
+
+function saveLookAsPreset() {
+  const list = userPresets();
+  const groups = Object.keys(GROUPS).filter(g => !['Geometria e ritaglio', 'Ritocco', 'LUT'].includes(g));
+  const values = copyGroups(params, {}, groups);
+  values.masks = values.masks.filter(m => m.ai);
+  list.push({ name: lookLast.name, group: 'Look AI', values });
+  saveUserPresets(list); toast('Salvato nel gruppo "Look AI"');
+}
+
+let srMode = 'quality';
+PANELS['Super Resolution'] = p => {
+  const [w, h] = engine.size;
+  const scale = srMode === 'x4' ? 4 : 2, k = Math.min(1, 4096 / (Math.max(w, h) * scale));
+  const bar = progressBar();
+  p.append(chips([['fast', 'Veloce ×2'], ['quality', 'Qualità ×2'], ['x4', 'Qualità ×4']], srMode, v => { srMode = v; renderPanel(); }),
+    note(`Risultato: ${Math.round(w * k * scale)} × ${Math.round(h * k * scale)} px` + (k < 1 ? ' (la foto viene prima ridotta: il limite di elaborazione è 4096 px)' : '')),
+    actions(btn(aiBusy ? 'Elaborazione…' : 'Migliora risoluzione', async () => {
+      if (aiBusy) return; aiBusy = true; bar.hidden = false;
+      try {
+        const out = await superResolution(curSrc, { mode: srMode, onProgress: v => bar.set(v, Math.round(v * 100) + '%') });
+        await saveCurrent();
+        const rec = await addDerivedPhoto(out, srMode === 'x4' ? ' (SR ×4)' : ' (SR)');
+        toast('Creata una nuova foto con risoluzione migliorata');
+        aiBusy = false; await loadIntoEditor(rec);
+      } catch (e) { aiBusy = false; alert('Super Resolution: ' + e.message); console.error(e); renderPanel(); }
+    }, 'primary')), bar,
+    note('Funziona offline sul telefono. Crea una copia della foto (come "Migliora" di Lightroom): l\'originale resta invariato. Con foto grandi può richiedere qualche minuto.'));
+  bar.hidden = true;
+};
+
+PANELS['Profondità'] = p => {
+  const bar = progressBar(); bar.hidden = true;
+  p.append(note(engine.hasDepth ? 'Mappa di profondità pronta: usala in Sfocatura (modo Profondità AI) e nelle Maschere (Intervallo profondità).'
+    : 'Stima la distanza di ogni punto della foto. Al primo uso scarica il modello (circa 27 MB, poi resta sul telefono).'),
+  actions(btn(aiBusy ? 'Elaborazione…' : engine.hasDepth ? 'Ricalcola' : 'Calcola mappa di profondità', async () => {
+    if (aiBusy) return; aiBusy = true; bar.hidden = false;
+    try {
+      const c = await depthMap(curSrc, (v, phase) => bar.set(v, phase === 'download' ? `Download modello ${Math.round(v / 0.9 * 100)}%` : 'Calcolo…'));
+      setDepthCanvas(c);
+      await DB.put('depth', await new Promise(r => c.toBlob(r, 'image/png')), curPhoto.id);
+      toast('Mappa di profondità calcolata');
+    } catch (e) { alert('Profondità: ' + e.message + '\n(serve una connessione la prima volta)'); console.error(e); }
+    aiBusy = false; renderPanel();
+  }, 'primary'), engine.hasDepth ? toggle('Mostra mappa', () => showDepth, v => { showDepth = v; }, true) : null), bar);
+  if (engine.hasDepth && showDepth && depthData) {
+    const c = el('canvas', { className: 'depthprev', width: depthData.w, height: depthData.h });
+    c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(depthData.d), depthData.w, depthData.h), 0, 0);
+    p.append(c);
+  }
+};
+let showDepth = false;
+
 PANELS['Calibrazione'] = p => {
   p.append(section('Ombre'), S('calSh', 'Tinta', -1, 1, 0.01, { bg: BG.tint }),
     section('Primario rosso'), S('calRH', 'Tonalità', -1, 1, 0.01, { bg: 'linear-gradient(90deg,#f0f,#f00,#fa0)' }), S('calRS', 'Saturazione', -1, 1),
@@ -934,7 +1090,17 @@ PANELS['Info'] = p => {
     ['Obiettivo', t.lens], ['Data', t.dateOriginal || t.date], ['ISO', t.iso], ['Tempo', t.exposure ? (t.exposure < 1 ? `1/${Math.round(1 / t.exposure)}` : t.exposure) + ' s' : ''],
     ['Diaframma', t.fnumber ? 'f/' + t.fnumber.toFixed(1) : ''], ['Focale', t.focal ? Math.round(t.focal) + ' mm' : ''], ['Copyright', t.copyright]];
   for (const [k, v] of rows) if (v) p.append(el('div', { className: 'listrow' }, el('span', { className: 'dim', textContent: k }), el('span', { textContent: String(v) })));
-  if (!loaded) p.append(note('Apri una foto.'));
+  const r = curPhoto; if (!r) return;
+  const upd = () => { DB.put('photos', r); renderPanel(); };
+  p.append(section('Organizza'),
+    chips([[0, '–'], [1, '★'], [2, '★★'], [3, '★★★'], [4, '★★★★'], [5, '★★★★★']], r.rating, v => { r.rating = +v; upd(); }),
+    chips([[1, '⚑ Scelta'], [0, 'Nessun contrassegno'], [-1, '✕ Rifiutata']], r.flag, v => { r.flag = +v; upd(); }),
+    chips([['', 'Nessuna etichetta'], ['red', 'Rossa'], ['yellow', 'Gialla'], ['green', 'Verde'], ['blue', 'Blu'], ['purple', 'Viola']], r.label, v => { r.label = v; upd(); }),
+    el('div', { className: 'row' }, el('label', { textContent: 'Parole chiave' }),
+      Object.assign(el('input', { type: 'text', className: 'num', value: r.keywords.join(', ') }),
+        { onchange: e => { r.keywords = e.target.value.split(',').map(w => w.trim().toLowerCase()).filter(Boolean); upd(); } }), el('span')),
+    el('div', { className: 'row' }, el('label', { textContent: 'Nome' }),
+      Object.assign(el('input', { type: 'text', className: 'num', value: r.name }), { onchange: e => { r.name = e.target.value || r.name; fileName = r.name; $('edTitle').textContent = r.name; upd(); } }), el('span')));
 };
 
 /* Esportazione */
@@ -988,32 +1154,70 @@ async function exportImage() {
   redraw();
 }
 
-/* ---------- Caricamento ---------- */
+/* ---------- Caricamento dalla libreria e salvataggio automatico ---------- */
 
-async function openFile(file) {
-  let bmp;
-  try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
-  catch { alert('Formato non supportato dal browser (i RAW arriveranno in una fase successiva).'); return; }
-  fileName = file.name.replace(/\.[^.]+$/, '');
-  exifData = readExif(await file.slice(0, 256 * 1024).arrayBuffer());
-  // sempre tramite canvas: con un ImageBitmap il browser ignora UNPACK_FLIP_Y e l'immagine risulterebbe capovolta
-  const fit = max => {
-    const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
-    const w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
-    const c = el('canvas', { width: w, height: h }); c.getContext('2d').drawImage(bmp, 0, 0, w, h);
-    return [c, w, h];
-  };
-  const [src, w, h] = fit(engine.maxSize);
-  engine.setImage(src, w, h);
-  const [ts, tw, th] = fit(256);
-  thumbEngine.setImage(ts, tw, th); thumbCache.clear();
-  setAnalysisImage(bmp);
+let curSrc = null, saveTimer = 0;
+
+/* Carica la foto nel motore; show = passa all'editor */
+async function loadIntoEditor(rec, show = true) {
+  const src = await photoSource(rec);
+  curPhoto = rec; curSrc = src.canvas;
+  fileName = rec.name;
+  exifData = { app1: src.app1 || null, tags: rec.exif || src.tags || {} };
+  engine.setImage(src.canvas, src.canvas.width, src.canvas.height);
+  const ts = scaledCanvas(src.canvas, 256);
+  thumbEngine.setImage(ts, ts.width, ts.height); thumbCache.clear();
+  setAnalysisImage(src.canvas);
   for (const k in brushCache) delete brushCache[k];
-  loaded = true; params = defaults(); curPreset = null; versions = []; selSpot = -1; maskIdx = 0;
-  history.undo.length = history.redo.length = 0;
+  depthData = null;
+  const dep = await DB.get('depth', rec.id);
+  if (dep) setDepthCanvas(scaledCanvas(await createImageBitmap(dep), 1024));
+  loaded = true;
+  params = Object.assign(defaults(), rec.edits ? clone(rec.edits) : {});
+  history.undo = clone(rec.history || []); history.redo = [];
+  versions = clone(rec.versions || []);
+  curPreset = null; selSpot = -1; maskIdx = 0;
+  if (!show) return;
   view.scale = 1; view.x = view.y = 0;
-  $('empty').hidden = true; $('hist').hidden = false;
-  renderPanel(); syncButtons();
+  $('libraryView').hidden = true; $('editorView').hidden = false;
+  $('empty').hidden = true; $('hist').hidden = false; $('edTitle').textContent = rec.name;
+  renderTabs(); renderPanel(); syncButtons();
+}
+const openPhoto = async id => { const rec = photos.find(p => p.id === id); if (rec) { toast('Apertura…'); await loadIntoEditor(rec); } };
+
+function scheduleSave() {
+  if (!curPhoto) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveCurrent, 800);
+}
+async function saveCurrent() {
+  if (!curPhoto) return;
+  clearTimeout(saveTimer);
+  const rec = curPhoto;
+  rec.edits = clone(params); rec.history = clone(history.undo.slice(-40)); rec.versions = clone(versions); rec.edited = Date.now();
+  await DB.put('photos', rec);
+  const b = brushCanvases();
+  await DB.put('thumbs', await makeThumb(curSrc, params, libEngine, { brushes: b.list, brushVer: b.ver }), rec.id);
+  dropThumb(rec.id);
+}
+
+async function closeEditor() {
+  await saveCurrent();
+  curPhoto = null; loaded = false;
+  $('editorView').hidden = true; $('libraryView').hidden = false;
+  renderLibrary();
+}
+
+/* Sostituisce l'immagine della foto (Super Resolution): crea una nuova foto nella libreria */
+async function addDerivedPhoto(canvas, suffix) {
+  const id = uid(), blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.95));
+  const rec = { ...clone(curPhoto), id, name: curPhoto.name + suffix, file: curPhoto.name + suffix + '.jpg', type: 'image/jpeg', raw: false,
+    size: blob.size, hash: id, added: Date.now(), w: canvas.width, h: canvas.height, edits: clone(params), history: [], versions: [], edited: Date.now() };
+  await DB.put('files', blob, id);
+  await DB.put('thumbs', await makeThumb(canvas, params), id);
+  await DB.put('photos', rec);
+  photos.push(rec);
+  return rec;
 }
 
 async function openLut(file) {
@@ -1026,17 +1230,18 @@ async function openLut(file) {
 
 /* ---------- Avvio ---------- */
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   try {
     engine = new Engine($('view'));
     thumbEngine = new Engine(document.createElement('canvas'));
-  } catch (e) { $('empty').textContent = 'Errore grafico: ' + e.message; console.error(e); return; }
-  renderTabs(); renderPanel(); syncButtons(); setupGestures();
-  $('btnOpen').onclick = () => $('file').click();
-  $('file').onchange = e => { e.target.files[0] && openFile(e.target.files[0]); e.target.value = ''; };
+  } catch (e) { document.body.textContent = 'Errore grafico: ' + e.message; console.error(e); return; }
+  setupGestures();
+  $('fab').onclick = () => $('file').click();
+  $('file').onchange = e => { const f = [...e.target.files]; e.target.value = ''; if (f.length) importFiles(f); };
   $('fileLut').onchange = e => { e.target.files[0] && openLut(e.target.files[0]); e.target.value = ''; };
   $('filePreset').onchange = e => { e.target.files.length && importPresets([...e.target.files]); e.target.value = ''; };
   $('fileWm').onchange = async e => { const f = e.target.files[0]; if (f) { exportOpts.wmImage = await createImageBitmap(f); renderPanel(); } e.target.value = ''; };
+  $('btnBack').onclick = closeEditor;
   $('btnUndo').onclick = undo; $('btnRedo').onclick = redo;
   $('btnExport').onclick = exportImage;
   const cmp = $('btnCompare');
@@ -1044,5 +1249,7 @@ window.addEventListener('DOMContentLoaded', () => {
   cmp.addEventListener('pointerdown', () => setCmp(true));
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) cmp.addEventListener(ev, () => setCmp(false));
   window.addEventListener('resize', redraw);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveCurrent(); });
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+  await initLibrary();
 });

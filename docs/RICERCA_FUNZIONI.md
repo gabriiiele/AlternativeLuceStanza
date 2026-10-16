@@ -64,21 +64,44 @@ Regola del progetto: **nessuna funzione basata su AI**. Dove Lightroom usa l'AI,
 | | Metadati: tutti, senza GPS, solo copyright, nessuno; nome file con segnaposto | ✅ |
 | | Spazi colore Adobe RGB / ProPhoto, esportazione HDR, DNG | ⛔ / 🔜 valutare |
 
-## Fase 2 – Libreria e flusso di lavoro (prossima)
-- Salvataggio automatico di foto e modifiche sul telefono (IndexedDB): cronologia e versioni persistenti
-- **Importazione RAW** (LibRaw compilato in WebAssembly, libreria open source)
-- Libreria: album, cartelle, stelle, contrassegni scelta/rifiuto, etichette colore, parole chiave
-- Ricerca e filtri per metadati, ordinamento per data / nome / valutazione, rilevamento duplicati
-- Modifica ed esportazione in batch, sincronizzazione delle impostazioni tra foto
-- Impostazioni app: tema, cache, preset applicato all'importazione, preferenze di esportazione predefinite
+## Funzioni AI (aggiunte su richiesta)
+| Funzione | Come funziona | Stato |
+|---|---|---|
+| Super Resolution ×2 / ×4 | Modelli ESRGAN (UpscalerJS, licenza MIT) inclusi nell'app, eseguiti sul telefono con TensorFlow.js. Crea una copia della foto | ✅ offline |
+| Mappa di profondità | Depth Anything V2 Small via transformers.js; scaricata al primo uso (~27 MB) e poi in cache | ✅ (testato con un modello di prova: quello reale si scarica sul telefono) |
+| Sfocatura obiettivo con profondità | Fuoco scelto toccando il soggetto, sfocatura proporzionale alla distanza | ✅ |
+| Maschera intervallo profondità | Seleziona per distanza (vicino/lontano) | ✅ |
+| Look da descrizione ("preset adattivi") | Con chiave API: Claude vede la foto e restituisce regolazioni + maschere su cielo/soggetto. Senza chiave: motore offline a parole chiave + correzione automatica dell'esposizione | ✅ |
+
+## Fase 2 – Libreria e flusso di lavoro (completata)
+| Funzione | Stato |
+|---|---|
+| Archivio sul telefono (IndexedDB): foto, modifiche, cronologia, versioni salvate automaticamente | ✅ |
+| Importazione multipla dalla Galleria (selettore di Android) | ✅ |
+| **"Condividi → Luce Stanza" dalla Galleria** (app installata) | ✅ |
+| Importazione RAW (LibRaw in WebAssembly: DNG, CR2, CR3, NEF, ARW, RAF, ORF, RW2…) | ✅ (non testato su un RAW reale) |
+| Libreria a griglia, colonne regolabili, filtri rapidi (scelte, valutate, modificate, rifiutate) | ✅ |
+| Album: crea, rinomina, elimina, aggiungi/togli foto | ✅ |
+| Stelle, contrassegni scelta/rifiuto, etichette colore, parole chiave, nome | ✅ |
+| Ricerca (nome, parole chiave, fotocamera, obiettivo, album, anno, mese) e filtri combinati | ✅ |
+| Ordinamento per data di scatto, importazione, nome, valutazione, ultima modifica | ✅ |
+| Rilevamento duplicati all'importazione e ricerca dei duplicati | ✅ |
+| Selezione multipla: valutazione, contrassegno, etichetta, parole chiave, album, preset, incolla impostazioni, esportazione, eliminazione | ✅ |
+| Impostazioni: tema scuro/OLED/chiaro, preset all'importazione, esportazione predefinita, chiave e modello AI, spazio occupato, archivio permanente | ✅ |
+
+### Limite sulla Galleria
+Una web app non può sfogliare da sola tutta la Galleria del telefono: Android lo permette solo alle app native.
+Le due strade disponibili sono il selettore multiplo (pulsante +) e "Condividi" dalla Galleria.
+Una vera navigazione della Galleria richiederebbe di impacchettare l'app come APK nativo (fattibile in seguito con GitHub Actions).
 
 ## Fase 3 – Strumenti avanzati
 - Unione HDR (esposizioni multiple) e panorama
 - Fotocamera integrata: esposizione, ISO, tempi, messa a fuoco, bilanciamento, griglia, timer, flash, secondo ciò che il telefono espone al browser
 - Curva locale nelle maschere, più campioni per l'intervallo colore
+- Eventuale versione APK nativa con accesso diretto alla Galleria
 
 ## Esclusi in modo definitivo
-- Tutto ciò che è AI (come richiesto).
+- Le funzioni AI non richieste (maschere soggetto/cielo/persone, rimozione generativa, denoise AI).
 - Account, abbonamento, cloud Adobe, album condivisi Adobe: servizi Adobe, non funzioni di modifica.
 - Profili Adobe originali, profili obiettivo Adobe: dati proprietari. Al loro posto ci sono profili originali e correzioni manuali.
 - Acquisizione DNG dalla fotocamera: il browser riceve solo JPEG dalla fotocamera.
