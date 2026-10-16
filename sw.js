@@ -1,5 +1,5 @@
-const CACHE = 'luce-stanza-v2';
-const FILES = ['./', 'index.html', 'style.css', 'app.js', 'manifest.json', 'icon.svg', 'engine.js', 'presets.js'];
+const CACHE = 'luce-stanza-v3';
+const FILES = ['./', 'index.html', 'style.css', 'manifest.json', 'icon.svg', 'shaders.js', 'engine.js', 'profiles.js', 'presets.js', 'state.js', 'tools.js', 'export.js', 'app.js'];
 
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))));
 self.addEventListener('activate', e => e.waitUntil(

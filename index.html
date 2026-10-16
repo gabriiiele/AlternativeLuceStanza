@@ -15,6 +15,8 @@
   <button id="btnOpen">Apri</button>
   <input id="file" type="file" accept="image/*" hidden>
   <input id="fileLut" type="file" accept=".cube" hidden>
+  <input id="filePreset" type="file" accept=".xmp,.lrtemplate,.json" multiple hidden>
+  <input id="fileWm" type="file" accept="image/*" hidden>
   <span class="spacer"></span>
   <button id="btnUndo" disabled>↶</button>
   <button id="btnRedo" disabled>↷</button>
@@ -24,15 +26,22 @@
 
 <main id="stage">
   <canvas id="view"></canvas>
+  <canvas id="ov"></canvas>
   <canvas id="hist" width="120" height="56" hidden></canvas>
   <div id="empty">Apri una foto per iniziare</div>
+  <div id="toast" hidden></div>
 </main>
 
 <nav id="tabs"></nav>
 <section id="panel"></section>
 
+<script src="shaders.js"></script>
 <script src="engine.js"></script>
+<script src="profiles.js"></script>
 <script src="presets.js"></script>
+<script src="state.js"></script>
+<script src="tools.js"></script>
+<script src="export.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

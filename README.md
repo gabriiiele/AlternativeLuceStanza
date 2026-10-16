@@ -11,20 +11,19 @@ Apri `http://<ip-del-computer>:8000` dal telefono con Chrome, poi menu ⋮ → "
 Per usarlo solo dal telefono, il modo più semplice è pubblicarlo con GitHub Pages.
 
 ## Funzioni
-- **Luce:** esposizione, contrasto, alteluci, ombre, bianchi, neri, chiarezza, texture, foschia, auto
-- **Colore:** temperatura, tinta, vividezza, saturazione, dissolvenza
-- **Gradazione** a tre toni, **B&N** con mix per colore, **HSL** su 8 colori
-- **Curve** RGB / R / G / B
-- **Dettaglio:** nitidezza, riduzione rumore. **Effetti:** vignettatura, grana, bagliore, halation, aberrazione cromatica
-- **Geometria:** ritaglio con proporzioni, raddrizza, zoom, rotazione, specchio
-- **Maschere** lineari e radiali (2), **LUT .cube**
-- **173 preset** con anteprima, ricerca, categorie e intensità regolabile; preset personali
-- Istogramma, zoom a due dita, annulla/ripeti, prima/dopo, copia/incolla impostazioni
-- Esportazione JPEG / PNG / WebP
+Tutte le regolazioni di Lightroom che non richiedono AI: luce, curve (punti e parametrica), colore e bilanciamento con contagocce,
+profili, mixer colore, colore punto, gradazione colore, bianco e nero, effetti, dettagli, ottica, Upright e trasformazioni,
+ritaglio, sfocatura obiettivo manuale, maschere (pennello, lineare, radiale, colore, luminanza, con operazioni tra componenti),
+ritocco (correggi, clona, occhi rossi), calibrazione, LUT, 173 preset, importazione preset Lightroom (.xmp/.lrtemplate),
+versioni, cronologia, esportazione JPEG/PNG/TIFF/WebP con filigrana, nitidezza di output, DPI e metadati.
 
-Catalogo completo e prossimi passi: [docs/RICERCA_FUNZIONI.md](docs/RICERCA_FUNZIONI.md)
+Stato dettagliato e prossime fasi: [docs/RICERCA_FUNZIONI.md](docs/RICERCA_FUNZIONI.md)
 
 ## File
-- `engine.js` motore WebGL (shader, curve, geometria, LUT)
-- `presets.js` libreria dei preset
+- `shaders.js` programmi GPU (pipeline, maschere, ritocco)
+- `engine.js` motore: passate GPU, curve, geometria, LUT
+- `state.js` valori predefiniti, gruppi di impostazioni, preset, profili
+- `profiles.js` profili colore · `presets.js` libreria preset
+- `tools.js` strumenti sull'immagine e analisi (linee, bilanciamento, ritocco)
+- `export.js` esportazione, TIFF, EXIF, filigrana
 - `app.js` interfaccia
