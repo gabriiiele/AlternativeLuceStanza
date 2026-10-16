@@ -12,8 +12,9 @@
 </head>
 <body>
 <header>
-  <button id="btnOpen">Apri foto</button>
+  <button id="btnOpen">Apri</button>
   <input id="file" type="file" accept="image/*" hidden>
+  <input id="fileLut" type="file" accept=".cube" hidden>
   <span class="spacer"></span>
   <button id="btnUndo" disabled>↶</button>
   <button id="btnRedo" disabled>↷</button>
@@ -23,12 +24,15 @@
 
 <main id="stage">
   <canvas id="view"></canvas>
+  <canvas id="hist" width="120" height="56" hidden></canvas>
   <div id="empty">Apri una foto per iniziare</div>
 </main>
 
 <nav id="tabs"></nav>
 <section id="panel"></section>
 
+<script src="engine.js"></script>
+<script src="presets.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
