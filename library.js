@@ -476,6 +476,9 @@ async function renderSettings(body) {
   };
   body.append(section('Aspetto'),
     sel('Tema', [['dark', 'Scuro'], ['oled', 'Nero (OLED)'], ['light', 'Chiaro']], () => appSettings.theme, v => { appSettings.theme = v; saveAppSettings(); renderLibrary(); }),
+    section('Editor'),
+    actions(toggle('Modalità semplice', () => appSettings.simpleMode, v => { appSettings.simpleMode = v; saveAppSettings(); }, true)),
+    note('Mostra solo gli strumenti essenziali: Auto, Preset, Regola, Beauty, Ritaglio e Look AI.'),
     section('Importazione'),
     sel('Preset all\'importazione', [['', 'Nessuno'], ...presetEntries().map(e => [e.cat + '/' + e.name, `${e.cat} · ${e.name}`])], () => appSettings.importPreset, v => { appSettings.importPreset = v; saveAppSettings(); }),
     actions(toggle('Salta i duplicati', () => appSettings.skipDuplicates, v => { appSettings.skipDuplicates = v; saveAppSettings(); }, true),

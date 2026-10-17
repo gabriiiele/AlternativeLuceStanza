@@ -182,6 +182,8 @@ uniform vec4 uBlurA;       // quantità, tipo, x, y
 uniform vec4 uBlurB;       // dimensione, angolo, sfumatura, bokeh
 uniform float uLbFocus;    // profondità a fuoco (modo profondità)
 uniform float uNoise;      // rumore stimato del sensore (deviazione standard, 0..1)
+uniform vec4 uBeauty;      // beauty: levigatura, uniformità incarnato, luminosità pelle, riduzione lucidità
+uniform float uShowSkin;
 uniform float uLutAmt, uLutSize;
 // maschere
 uniform vec4 uMk[40];      // 8 maschere x 5 vec4
@@ -260,6 +262,14 @@ vec3 softShoulder(vec3 c){
   if (m <= 0.8) return c;
   float mm = 0.8 + 0.2 * (1.0 - exp(-(m - 0.8) / 0.2));
   return c * (mm / m);
+}
+/* Pelle riconosciuta dal colore (YCbCr, intervallo classico degli incarnati), con bordi morbidi */
+float skinMask(vec3 c){
+  float y = luma(c), cb = 0.5 - 0.1687 * c.r - 0.3313 * c.g + 0.5 * c.b, cr = 0.5 + 0.5 * c.r - 0.4187 * c.g - 0.0813 * c.b;
+  // la crominanza degli incarnati è simile per tutte le carnagioni; i colori poco saturi (muri beige, sabbia chiara) sono esclusi
+  float chroma = length(vec2(cb - 0.5, cr - 0.5));
+  return smoothstep(0.31, 0.34, cb) * (1.0 - smoothstep(0.465, 0.49, cb)) * smoothstep(0.525, 0.545, cr) * (1.0 - smoothstep(0.65, 0.68, cr))
+       * smoothstep(0.04, 0.06, chroma) * smoothstep(0.05, 0.1, y);
 }
 float atanh1(float x){ return 0.5 * log((1.0 + x) / (1.0 - x)); }
 float tanhf(float x){ float e = exp(2.0 * clamp(x, -10.0, 10.0)); return (e - 1.0) / (e + 1.0); }
@@ -386,8 +396,26 @@ void main(){
     c = vec3(yn) + mix(ch, cs / cw, nrC);
   }
 
+  // --- beauty: separazione delle frequenze sulla pelle ---
+  // le frequenze medie (imperfezioni, irregolarità) vengono attenuate, la grana fine (pori) resta in parte: pelle naturale
+  float skinM = 0.0;
+  if (uBeauty.x + uBeauty.y + uBeauty.z + uBeauty.w > 0.0 || uShowSkin > 0.5) {
+    vec3 b1 = texture2D(uBlur1, uv).rgb, b2 = texture2D(uBlur2, uv).rgb;
+    skinM = skinMask(b1);
+    if (uBeauty.x > 0.0 && skinM > 0.0) {
+      float edge = abs(luma(c) - luma(b2));                         // occhi, labbra, sopracciglia restano nitidi
+      float w = skinM * (1.0 - smoothstep(0.05, 0.13, edge)) * uBeauty.x;
+      c -= (b1 - b2) * w * 0.8 + (c - b1) * w * (0.4 + 0.45 * uBeauty.x);
+      // al posto della grana tolta (che contiene anche il rumore di compressione) una grana fine e uniforme, come pelle vera
+      vec2 sp = floor(uv / uTexel);
+      c += (hash(sp) + hash(sp + 23.1) - 1.0) * max(uNoise, 0.004) * 1.6 * w;
+    }
+    if (uBeauty.y > 0.0 && skinM > 0.0)                               // rossori e macchie: il colore segue quello medio della zona
+      c += ((b2 - luma(b2)) - (c - luma(c))) * skinM * skinMask(b2) * uBeauty.y * 0.6;   // solo se anche i dintorni sono pelle
+  }
+
   // --- nitidezza (quantità, raggio, dettaglio, mascheratura) ---
-  float shp = max(uSharpP.x + L3.y, 0.0);
+  float shp = max(uSharpP.x + L3.y, 0.0) * (1.0 - skinM * uBeauty.x * 0.8);
   if (shp > 0.0) {
     vec2 o = uTexel * uSharpP.y;
     vec3 a1 = tex(uv + vec2(o.x, 0.0)), a2 = tex(uv - vec2(o.x, 0.0)), a3 = tex(uv + vec2(0.0, o.y)), a4 = tex(uv - vec2(0.0, o.y));
@@ -441,6 +469,7 @@ void main(){
     c *= 1.0 + uLensVig * smoothstep(uLensVigMid * 0.8, 1.0, r) * 1.5;
   }
   c *= exp2(uExp + L0.x);
+  if (uBeauty.z != 0.0) c *= 1.0 + skinM * uBeauty.z * 0.35;      // luminosità della pelle
   float tm = uTemp + L1.z, tn = uTint + L1.w;
   c *= vec3(1.0 + tm * 0.3 + tn * 0.05, 1.0 - tn * 0.2, 1.0 - tm * 0.3 + tn * 0.05);
   c = max(uCal * c, 0.0);
@@ -471,6 +500,15 @@ void main(){
     c = mix(c + (yc - y), c * (yc / max(y, 1e-4)), 0.5);
   }
   c = fitGamut(c);
+
+  // riduzione della lucidità: le alte luci sulla pelle vengono smorzate e riprendono un po' di colore
+  if (uBeauty.w > 0.0 && skinM > 0.0) {
+    // lucido = più chiaro della pelle attorno e quasi bianco, non semplicemente pelle chiara
+    vec3 tone = texture2D(uBlur2, uv).rgb;
+    float lt = toSrgb(vec3(luma(tone))).r;
+    float sh2 = smoothstep(0.03, 0.12, luma(c) - lt) * smoothstep(0.6, 0.85, luma(c)) * skinM * uBeauty.w;
+    c = mix(c, vec3(lt) + (c - vec3(luma(c))) * 1.1, sh2 * 0.7);
+  }
 
   // --- mixer colore HSL, mix bianco e nero, colore punto ---
   vec3 hsl = rgb2hsl(c);
@@ -573,6 +611,7 @@ void main(){
     else if (max(c.r, max(c.g, c.b)) < 0.004) c = vec3(0.2, 0.45, 1.0);
   }
   if (uShowMask >= 0.0) c = mix(c, uOverlay.rgb, showW * uOverlay.a);
+  if (uShowSkin > 0.5) c = mix(c, vec3(1.0, 0.3, 0.6), skinM * 0.55);
   if (uPCShow >= 0.0) c = mix(vec3(luma(c) * 0.5), c, pcSel);
   // dithering: elimina gli scalini nei gradienti (cieli, ombre) quando il risultato torna a 8 bit
   c += (hash(gl_FragCoord.xy) + hash(gl_FragCoord.xy + 37.1) - 1.0) / 255.0;

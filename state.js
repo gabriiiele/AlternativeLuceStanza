@@ -47,6 +47,8 @@ const defaults = () => ({
   // calibrazione
   calSh: 0, calRH: 0, calRS: 0, calGH: 0, calGS: 0, calBH: 0, calBS: 0,
   // sfocatura obiettivo
+  // beauty
+  bSmooth: 0, bEven: 0, bBright: 0, bShine: 0,
   lbAmt: 0, lbType: 'radial', lbX: 0.5, lbY: 0.5, lbSize: 0.15, lbAngle: 0, lbFeather: 0.3, lbBokeh: 0, lbFocus: 0.8,
   // geometria
   geo: { angle: 0, trot: 0, rot: 0, fx: 0, fy: 0, vert: 0, horiz: 0, distort: 0, aspAdj: 0, scale: 1, ox: 0, oy: 0,
@@ -77,6 +79,7 @@ const GROUPS = {
   'Geometria e ritaglio': ['geo'],
   'Maschere': ['masks'],
   'Ritocco': ['spots'],
+  'Beauty': ['bSmooth', 'bEven', 'bBright', 'bShine'],
   'LUT': ['lutAmt'],
 };
 const LOCAL_GROUPS = ['Geometria e ritaglio', 'Maschere', 'Ritocco'];

@@ -15,6 +15,12 @@ Uso solo personale: niente reverse engineering o copia di codice/dati Adobe, sol
 - Sfocatura con profondità: raccolta che esclude i campioni del soggetto a fuoco (niente alone), livelli presfocati per raggi grandi,
   rumore del sensore reintegrato (`engine.noise` da `estimateNoise`); mappa rifinita con filtro guidato (`refineDepth`).
   Pannello Profondità: azioni rapide (sfondo sfocato, soggetto in risalto, foschia, maschere primo piano/sfondo).
+- Modalità semplice (`appSettings.simpleMode`, `TOOLS_SIMPLE`, `activeTools()`): Auto, Preset, Regola (pannello `Semplice`),
+  Beauty, Ritaglio, Look AI; si cambia dal menu ⋮ o dalle Impostazioni. Il Beauty è anche in Ritocco → Beauty nella modalità completa.
+- Beauty (`bSmooth`, `bEven`, `bBright`, `bShine`): pelle riconosciuta dal colore in YCbCr con soglia di crominanza (niente soglie di
+  luminosità, per non escludere le carnagioni scure); separazione delle frequenze tra `uBlur1` e `uBlur2`, lineamenti protetti dal
+  bordo, grana fine sostituita con grana uniforme pari a `uNoise`; lucidità = più chiaro dei dintorni. Capelli biondi/castani
+  possono rientrare nella maschera (limite del solo colore).
 - iPhone: `compat.js` (IS_IOS, CANVAS_MAX_SIDE 4096 / area 16,7 MP su Safari, `decodeImage` via <img> per HEIC/EXIF, `supportsWebp`).
   Niente share target su iOS: si importa con + → Libreria foto. Avviso "Aggiungi alla schermata Home" (Safari cancella i dati dopo 7 giorni).
   Icone PNG (icon-180 per iOS). WebKit non è disponibile nell'ambiente: test fatti con Chromium + user agent iPhone.

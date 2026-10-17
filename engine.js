@@ -447,6 +447,8 @@ class Engine {
     gl.uniform4fv(u.uBlurA, [p.lbAmt, { radial: 0, linear: 1, depth: this.hasDepth ? 2 : 0 }[p.lbType], p.lbX, p.lbY]);
     f1('uLbFocus', p.lbFocus);
     f1('uNoise', this.noise || 0);
+    gl.uniform4fv(u.uBeauty, [p.bSmooth || 0, p.bEven || 0, p.bBright || 0, p.bShine || 0]);
+    f1('uShowSkin', opts.showSkin ? 1 : 0);
     gl.uniform4fv(u.uBlurB, [p.lbSize, p.lbAngle * Math.PI / 180, p.lbFeather, p.lbBokeh]);
     f1('uLutAmt', this.lutSize > 0 ? p.lutAmt : 0); f1('uLutSize', this.lutSize || 2);
     const MK = new Float32Array(MAX_MASKS * 20);

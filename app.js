@@ -20,9 +20,26 @@ const TOOLS = [
   { label: 'Modifica', icon: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4', subs: ['Luce', 'Curva', 'Colore', 'Mixer', 'Colore punto', 'Gradazione', 'B&N', 'Effetti', 'Dettagli', 'Ottica', 'Sfocatura', 'Calibrazione'] },
   { label: 'Ritaglia', icon: 'M6 2v16h16M2 6h16v16', subs: ['Ritaglio', 'Trasforma'] },
   { label: 'Maschere', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 3v18', subs: ['Maschere'] },
-  { label: 'Ritocco', icon: 'M4 20l10-10M14 4l6 6-4 4-6-6zM4 20h5', subs: ['Ritocco'] },
+  { label: 'Ritocco', icon: 'M4 20l10-10M14 4l6 6-4 4-6-6zM4 20h5', subs: ['Ritocco', 'Beauty'] },
   { label: 'AI', icon: 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2zM19 15l1 2 2 1-2 1-1 2-1-2-2-1 2-1z', subs: ['Look AI', 'Super Resolution', 'Profondità'] },
 ];
+/* Modalità semplice: pochi strumenti essenziali, con il beauty in primo piano */
+const ICON_FACE = 'M12 3a8 9 0 1 0 0.01 0zM9 10h.01M15 10h.01M9 14.5c1.6 1.6 4.4 1.6 6 0';
+const TOOLS_SIMPLE = [
+  { label: 'Auto', icon: 'M4 20l6-16h4l6 16M7 14h10', action: () => autoTone() },
+  { label: 'Preset', icon: 'M4 6h16M4 12h16M4 18h10', subs: ['Preset'] },
+  { label: 'Regola', icon: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4', subs: ['Semplice'] },
+  { label: 'Beauty', icon: ICON_FACE, subs: ['Beauty'] },
+  { label: 'Ritaglia', icon: 'M6 2v16h16M2 6h16v16', subs: ['Ritaglio'] },
+  { label: 'Look AI', icon: 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2zM19 15l1 2 2 1-2 1-1 2-1-2-2-1 2-1z', subs: ['Look AI'] },
+];
+const activeTools = () => (appSettings.simpleMode ? TOOLS_SIMPLE : TOOLS);
+function setSimpleMode(on) {
+  appSettings.simpleMode = !!on; saveAppSettings();
+  if (!activeTools().some(t => t.subs?.includes(curTab))) curTab = on ? 'Semplice' : 'Luce';
+  renderTabs(); renderPanel();
+  toast(on ? 'Modalità semplice: solo gli strumenti essenziali' : 'Modalità completa: tutti gli strumenti');
+}
 const SUB_LABEL = { 'Trasforma': 'Geometria', 'Colore punto': 'Punto', 'Super Resolution': 'Super Res.', 'Calibrazione': 'Calibraz.' };
 
 /* Icone (tratti su griglia 24×24) */
@@ -52,6 +69,7 @@ const ICONS = {
   'Luce (maschera)': circ(12, 12, 4) + 'M12 2v3M12 19v3M2 12h3M19 12h3', 'Colore (maschera)': 'M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z',
   'Effetti (maschera)': 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z',
 };
+ICONS.Beauty = ICON_FACE; ICONS.Semplice = 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4';
 const GROUP_COL = { 'Primario rosso': '#ff5252', 'Primario verde': '#4caf50', 'Primario blu': '#448aff' };
 function svgIcon(d, size = 22) {
   const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -59,7 +77,7 @@ function svgIcon(d, size = 22) {
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', d); sv.append(path);
   return sv;
 }
-const TAB_ORDER = TOOLS.flatMap(t => t.subs || []);
+const TAB_ORDER = [...TOOLS, ...TOOLS_SIMPLE].flatMap(t => t.subs || []);
 
 const $ = id => document.getElementById(id);
 let params = defaults();
@@ -269,6 +287,7 @@ function redraw() {
       full: tool.mode === 'crop', brushes: b.list, brushVer: b.ver,
       showMask: curTab === 'Maschere' && overlayOn && params.masks[maskIdx] ? maskIdx : -1, overlay: overlayCol,
       pcShow: curTab === 'Colore punto' && pcShowRange && params.pc[pcIdx] ? pcIdx : -1,
+      showSkin: curTab === 'Beauty' && showSkin,
       clip: appSettings.viewClip && !comparing,
     });
     const cv = $('view');
@@ -318,10 +337,10 @@ function syncToolMode() {
 /* ---------- Schede ---------- */
 
 function renderTabs() {
-  const tool = TOOLS.find(t => t.subs?.includes(curTab));
+  const tool = activeTools().find(t => t.subs?.includes(curTab));
   if (tool) menuTab = curTab;
   const nav = $('tools'); nav.innerHTML = '';
-  for (const t of TOOLS) {
+  for (const t of activeTools()) {
     const b = el('button', { className: 'toolbtn' + (t === tool ? ' on' : ''), onclick: () => {
       if (t.action) { t.action(); return; }
       curTab = t.subs.includes(curTab) ? curTab : t.lastSub || t.subs[0]; renderTabs(); renderPanel();
@@ -346,7 +365,7 @@ const PANELS = {};
 function renderPanel() {
   const panel = $('panel'), top = panel.scrollTop; panel.innerHTML = '';
   const append = panel.append.bind(panel);
-  if (!TOOLS.some(t => t.subs?.includes(curTab)))   // pannello aperto dal menu: titolo e chiusura
+  if (!activeTools().some(t => t.subs?.includes(curTab)))   // pannello aperto dal menu: titolo e chiusura
     append(el('div', { className: 'phead' }, el('b', {}, ICONS[curTab] ? svgIcon(ICONS[curTab], 20) : null, curTab),
       btn('✕', () => { curTab = menuTab; renderTabs(); renderPanel(); }, 'ibtn')));
   PANELS[curTab]({ append: (...k) => append(...k.filter(x => x != null)) });
@@ -355,6 +374,31 @@ function renderPanel() {
 }
 
 /* Luce */
+/* Modalità semplice: i controlli essenziali, con nomi comprensibili */
+PANELS['Semplice'] = p => {
+  p.append(actions(btn('Auto', autoTone, 'primary')),
+    S('exp', 'Luminosità', -3, 3, 0.01, { bg: BG.exp }), S('contrast', 'Contrasto', -1, 1),
+    S('hi', 'Alte luci', -1, 1), S('sh', 'Ombre', -1, 1),
+    S('temp', 'Calore', -1, 1, 0.01, { bg: BG.temp }), S('vib', 'Vividezza', -1, 1), S('sat', 'Saturazione', -1, 1, 0.01, { bg: BG.sat }),
+    S('clarity', 'Nitidezza dei dettagli', -1, 1), S('vig', 'Vignettatura', -1, 1),
+    note('Per tutti gli strumenti passa alla modalità completa dal menu ⋮.'));
+};
+
+/* Beauty: la pelle viene riconosciuta dal colore e ritoccata con la separazione delle frequenze */
+let showSkin = false;
+const BEAUTY_LEVELS = { none: [0, 0, 0, 0], soft: [0.35, 0.25, 0.08, 0.2], medium: [0.55, 0.4, 0.12, 0.35], strong: [0.8, 0.55, 0.18, 0.5] };
+PANELS['Beauty'] = p => {
+  const cur = [params.bSmooth, params.bEven, params.bBright, params.bShine];
+  const level = Object.keys(BEAUTY_LEVELS).find(k => BEAUTY_LEVELS[k].every((v, i) => Math.abs(v - cur[i]) < 1e-3)) || '';
+  p.append(chips([['none', 'Nessuno'], ['soft', 'Naturale'], ['medium', 'Medio'], ['strong', 'Intenso']], level, v => {
+    commit('Beauty'); [params.bSmooth, params.bEven, params.bBright, params.bShine] = BEAUTY_LEVELS[v]; renderPanel();
+  }),
+  S('bSmooth', 'Levigatura pelle', 0, 1), S('bEven', 'Uniforma incarnato', 0, 1),
+  S('bBright', 'Luminosità pelle', -0.5, 1), S('bShine', 'Riduci lucidità', 0, 1),
+  actions(toggle('Mostra pelle rilevata', () => showSkin, v => { showSkin = v; }, true)),
+  note('Leviga imperfezioni e macchie conservando i pori e lasciando nitidi occhi e labbra. La pelle è riconosciuta dal colore: se l\'effetto tocca anche legno o sabbia, usa "Mostra pelle rilevata" e limita con una maschera.'));
+};
+
 PANELS['Luce'] = p => {
   p.append(S('exp', 'Esposizione', -3, 3, 0.01, { bg: BG.exp }), S('contrast', 'Contrasto', -1, 1), S('hi', 'Alte luci', -1, 1), S('sh', 'Ombre', -1, 1),
     S('wh', 'Bianchi', -1, 1), S('bl', 'Neri', -1, 1), actions(btn('Auto', autoTone)));
@@ -1357,6 +1401,8 @@ function openMenu() {
     [ICONS.Versioni, 'Versioni', () => openPanel('Versioni')],
     [ICONS.Cronologia, 'Cronologia', () => openPanel('Cronologia')],
     [ICONS.Info, 'Info foto', () => openPanel('Info')],
+    null,
+    [ICON_FACE, appSettings.simpleMode ? 'Passa alla modalità completa' : 'Passa alla modalità semplice', () => setSimpleMode(!appSettings.simpleMode)],
     ['M7 4l13 8-13 8z', 'Avvia presentazione', startSlideshow],
   ];
   const box = el('div', { className: 'menu' });
@@ -1460,7 +1506,7 @@ async function loadIntoEditor(rec, show = true) {
   view.scale = 1; view.x = view.y = 0;
   $('libraryView').hidden = true; $('editorView').hidden = false;
   $('empty').hidden = true; $('edTitle').textContent = rec.name;
-  if (!TOOLS.some(t => t.subs?.includes(curTab))) curTab = menuTab;
+  if (!activeTools().some(t => t.subs?.includes(curTab))) curTab = menuTab;
   renderTabs(); renderPanel(); syncButtons(); syncViewOpts();
 }
 const openPhoto = async id => { const rec = photos.find(p => p.id === id); if (rec) { toast('Apertura…'); await loadIntoEditor(rec); } };
