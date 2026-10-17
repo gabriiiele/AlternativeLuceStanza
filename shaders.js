@@ -238,7 +238,10 @@ vec3 applyLut(vec3 c){
 /* Curve a 16 bit: 1024 voci, riga alta = byte alto, riga bassa = byte basso; interpolazione manuale */
 vec3 curveEntry(float i){
   float x = (i + 0.5) / 1024.0;
-  return (texture2D(uCurve, vec2(x, 0.25)).rgb * 65280.0 + texture2D(uCurve, vec2(x, 0.75)).rgb * 255.0) / 65535.0;
+  // sui telefoni le texture si leggono in bassa precisione (lowp): si copia in highp e si arrotonda al byte prima di combinarle
+  highp vec3 hi = texture2D(uCurve, vec2(x, 0.25)).rgb, lo = texture2D(uCurve, vec2(x, 0.75)).rgb;
+  hi = floor(hi * 255.0 + 0.5); lo = floor(lo * 255.0 + 0.5);
+  return clamp((hi * 256.0 + lo) / 65535.0, 0.0, 1.0);
 }
 float curveAt(float x, int ch){
   float f = clamp(x, 0.0, 1.0) * 1023.0, i0 = floor(f), t = f - i0;

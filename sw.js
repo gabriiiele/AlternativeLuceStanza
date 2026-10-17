@@ -1,4 +1,4 @@
-const CACHE = 'luce-stanza-v6';
+const CACHE = 'luce-stanza-v7';
 const FILES = ['./', 'index.html', 'style.css', 'manifest.json', 'icon.svg', 'shaders.js', 'engine.js', 'profiles.js', 'presets.js',
   'state.js', 'db.js', 'tools.js', 'export.js', 'ai.js', 'app.js', 'library.js',
   'vendor/tf.min.js', 'vendor/anthropic-sdk.js',
@@ -41,5 +41,7 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (e.request.method !== 'GET') return;
-  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+  // stessa origine: chiede sempre al server se il file è cambiato (evita di mescolare file di versioni diverse)
+  const same = url.origin === location.origin;
+  e.respondWith(fetch(e.request, same ? { cache: 'no-cache' } : {}).catch(() => caches.match(e.request, { ignoreSearch: true })));
 });

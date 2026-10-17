@@ -54,8 +54,8 @@ button.primary, button.on { background:var(--acc); color:var(--acc-text); }
 #hist { position:absolute; top:6px; right:6px; width:120px; height:56px; background:#0008; border-radius:6px; pointer-events:none; }
 .subtabs { display:flex; gap:8px; overflow-x:auto; background:var(--panel); padding:10px 12px 6px; scrollbar-width:none; border-top:1px solid var(--line); }
 .subtabs[hidden] { display:none; }
-.subtabs button { background:var(--panel2); border-radius:18px; padding:8px 14px; white-space:nowrap; font-size:13px; flex:none; }
-.subtabs button.on { background:var(--acc); color:var(--acc-text); }
+.subtabs button { background:none; border-radius:10px; padding:7px 8px 6px; white-space:nowrap; font-size:11px; flex:none; min-width:64px; display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--dim); }
+.subtabs button.on { background:var(--panel2) !important; color:var(--acc) !important; }
 #panel { height:38vh; overflow-y:auto; overscroll-behavior:contain; background:var(--panel); padding:4px 18px 16px; }
 .toolbar { display:flex; background:var(--panel); border-top:1px solid var(--line); padding:2px 4px env(safe-area-inset-bottom); }
 .toolbar::-webkit-scrollbar, .subtabs::-webkit-scrollbar { display:none; }
@@ -96,7 +96,10 @@ button.primary, button.on { background:var(--acc); color:var(--acc-text); }
 .menu { position:absolute; top:calc(env(safe-area-inset-top) + 50px); right:8px; background:var(--panel); border:1px solid var(--line); border-radius:10px; min-width:260px; max-height:80vh; overflow:auto; box-shadow:0 8px 30px #000a; padding:4px 0; }
 .menu button { display:flex; align-items:center; gap:14px; width:100%; background:none; border-radius:0; padding:13px 18px; text-align:left; font-size:15px; }
 .menu button:active { background:var(--panel2); }
-.menu .mi { width:22px; text-align:center; color:var(--dim); }
+.menu .mi { width:22px; display:flex; color:var(--dim); }
+.menu button:disabled .mi { opacity:.5; }
+.grp > summary .ic { width:18px; height:18px; color:var(--dim); flex:none; }
+.phead b { display:flex; align-items:center; gap:8px; }
 .menu hr { border:0; border-top:1px solid var(--line); margin:4px 0; }
 #infoOv { position:absolute; top:8px; left:10px; white-space:pre-line; font-size:13px; line-height:1.5; color:#fff; text-shadow:0 1px 3px #000; pointer-events:none; }
 #infoOv[hidden] { display:none; }

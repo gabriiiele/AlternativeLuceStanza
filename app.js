@@ -23,7 +23,42 @@ const TOOLS = [
   { label: 'Ritocco', icon: 'M4 20l10-10M14 4l6 6-4 4-6-6zM4 20h5', subs: ['Ritocco'] },
   { label: 'AI', icon: 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2zM19 15l1 2 2 1-2 1-1 2-1-2-2-1 2-1z', subs: ['Look AI', 'Super Resolution', 'Profondità'] },
 ];
-const SUB_LABEL = { 'Trasforma': 'Geometria', 'Colore punto': 'Punto' };
+const SUB_LABEL = { 'Trasforma': 'Geometria', 'Colore punto': 'Punto', 'Super Resolution': 'Super Res.', 'Calibrazione': 'Calibraz.' };
+
+/* Icone (tratti su griglia 24×24) */
+const circ = (x, y, r) => `M${x - r} ${y}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
+const ICONS = {
+  'Preset': 'M4 6h16M4 12h16M4 18h10', 'Profili': 'M4 4h11v11H4zM9 9h11v11H9z', 'LUT': 'M4 4h16v16H4zM4 9.3h16M4 14.6h16M9.3 4v16M14.6 4v16',
+  'Luce': circ(12, 12, 4) + 'M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2',
+  'Curva': 'M4 4v16h16M5 19C10 19 11 5 19 5', 'Colore': 'M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0zM12 11v6',
+  'Mixer': 'M6 4v16M12 4v16M18 4v16M4 8h4M10 15h4M16 10h4', 'Colore punto': circ(12, 12, 3) + 'M12 3v5M12 16v5M3 12h5M16 12h5',
+  'Gradazione': circ(9, 9, 5) + circ(15, 9, 5) + circ(12, 15, 5), 'B&N': circ(12, 12, 9) + 'M12 3v18M12 7h6M12 11h8M12 15h7',
+  'Effetti': 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 7h8a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z',
+  'Dettagli': 'M12 3l9 17H3z', 'Ottica': circ(12, 12, 9) + circ(12, 12, 4) + 'M12 3v5M12 16v5',
+  'Sfocatura': 'M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11zM9 15a3 3 0 0 0 3 3', 'Calibrazione': 'M3 12h4l2-6 4 12 2-6h6',
+  'Ritaglio': 'M6 2v16h16M2 6h16v16', 'Trasforma': 'M4 20L8 4h8l4 16zM9 12h6M12 4v16',
+  'Maschere': circ(12, 12, 9) + 'M12 3v18', 'Ritocco': 'M4 20l10-10M14 4l6 6-4 4-6-6zM4 20h5',
+  'Look AI': 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2zM19 15l1 2 2 1-2 1-1 2-1-2-2-1 2-1z',
+  'Super Resolution': 'M4 14v6h6M20 10V4h-6M4 20l7-7M20 4l-7 7', 'Profondità': 'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5',
+  'Versioni': 'M7 3h10v4H7zM4 9h16v12H4z', 'Cronologia': circ(12, 12, 9) + 'M12 7v5l3 3', 'Info': circ(12, 12, 9) + 'M12 11v6M12 7.5v.01',
+  'Organizza': 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z', 'Esporta': 'M12 3v12M7 10l5 5 5-5M5 20h14',
+  // sezioni
+  'Presenza': 'M12 3l9 17H3zM12 10v4', 'Granulosità': 'M6 6h.01M12 5h.01M18 7h.01M7 12h.01M13 11h.01M17 13h.01M5 18h.01M11 17h.01M18 18h.01M9 8.5h.01M15 15h.01',
+  'Vignettatura': 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z' + circ(12, 12, 5), 'Creativi': 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z',
+  'Nitidezza': 'M12 3l9 17H3z', 'Riduzione disturbo luminanza': 'M4 12c2-4 4-4 6 0s4 4 6 0 3-3 4-1', 'Riduzione disturbo colore': 'M4 12c2-4 4-4 6 0s4 4 6 0 3-3 4-1M4 18h16',
+  'Aberrazione cromatica': circ(10, 12, 6) + circ(14, 12, 6), 'Frange viola': circ(12, 12, 8) + 'M12 4v16', 'Frange verdi': circ(12, 12, 8) + 'M4 12h16',
+  'Correzione obiettivo manuale': circ(12, 12, 9) + circ(12, 12, 4), 'Ombre': 'M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z',
+  'Primario rosso': circ(12, 12, 7), 'Primario verde': circ(12, 12, 7), 'Primario blu': circ(12, 12, 7), 'Sovrapposizione': 'M4 8h12v12H4zM8 4h12v12',
+  'Luce (maschera)': circ(12, 12, 4) + 'M12 2v3M12 19v3M2 12h3M19 12h3', 'Colore (maschera)': 'M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z',
+  'Effetti (maschera)': 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z',
+};
+const GROUP_COL = { 'Primario rosso': '#ff5252', 'Primario verde': '#4caf50', 'Primario blu': '#448aff' };
+function svgIcon(d, size = 22) {
+  const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  sv.setAttribute('viewBox', '0 0 24 24'); sv.setAttribute('width', size); sv.setAttribute('height', size); sv.classList.add('ic');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', d); sv.append(path);
+  return sv;
+}
 const TAB_ORDER = TOOLS.flatMap(t => t.subs || []);
 
 const $ = id => document.getElementById(id);
@@ -128,7 +163,9 @@ const groupOpen = {};
 function group(title, open, ...kids) {
   const d = el('details', { className: 'grp' });
   d.open = groupOpen[title] ?? open;
-  d.append(el('summary', {}, el('span', { textContent: title }), el('i', { className: 'dot' })), ...kids.filter(k => k != null));
+  const ic = ICONS[title] ? svgIcon(ICONS[title], 18) : null;
+  if (ic && GROUP_COL[title]) ic.style.color = GROUP_COL[title];
+  d.append(el('summary', {}, ic, el('span', { textContent: title }), el('i', { className: 'dot' })), ...kids.filter(k => k != null));
   d.addEventListener('toggle', () => { groupOpen[title] = d.open; });
   d.classList.toggle('mod', !!d.querySelector('.sl.mod'));
   return d;
@@ -289,16 +326,18 @@ function renderTabs() {
       if (t.action) { t.action(); return; }
       curTab = t.subs.includes(curTab) ? curTab : t.lastSub || t.subs[0]; renderTabs(); renderPanel();
     } });
-    const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('viewBox', '0 0 24 24'); sv.classList.add('ic');
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', t.icon); sv.append(path);
-    b.append(sv, el('span', { textContent: t.label }));
+    b.append(svgIcon(t.icon), el('span', { textContent: t.label }));
     nav.append(b);
   }
   const sub = $('tabs'); sub.innerHTML = ''; sub.hidden = !tool || tool.subs.length < 2;
   if (tool) {
     tool.lastSub = curTab;
-    for (const name of tool.subs)
-      sub.append(el('button', { textContent: SUB_LABEL[name] || name, className: name === curTab ? 'on' : '', onclick: () => { curTab = name; renderTabs(); renderPanel(); } }));
+    for (const name of tool.subs) {
+      const b = el('button', { className: name === curTab ? 'on' : '', onclick: () => { curTab = name; renderTabs(); renderPanel(); } });
+      if (ICONS[name]) b.append(svgIcon(ICONS[name], 20));
+      b.append(el('span', { textContent: SUB_LABEL[name] || name }));
+      sub.append(b);
+    }
     sub.querySelector('.on')?.scrollIntoView({ inline: 'center', block: 'nearest' });
   }
 }
@@ -308,7 +347,7 @@ function renderPanel() {
   const panel = $('panel'), top = panel.scrollTop; panel.innerHTML = '';
   const append = panel.append.bind(panel);
   if (!TOOLS.some(t => t.subs?.includes(curTab)))   // pannello aperto dal menu: titolo e chiusura
-    append(el('div', { className: 'phead' }, el('b', { textContent: curTab }),
+    append(el('div', { className: 'phead' }, el('b', {}, ICONS[curTab] ? svgIcon(ICONS[curTab], 20) : null, curTab),
       btn('✕', () => { curTab = menuTab; renderTabs(); renderPanel(); }, 'ibtn')));
   PANELS[curTab]({ append: (...k) => append(...k.filter(x => x != null)) });
   panel.scrollTop = top;
@@ -1254,27 +1293,27 @@ function openMenu() {
   if (document.querySelector('.menu-wrap')) return;
   const canPrev = prevEdits && prevEdits.id !== curPhoto?.id;
   const items = [
-    ['⇩', 'Salva copia sul dispositivo', exportImage],
-    ['⚙', 'Opzioni di esportazione', () => openPanel('Esporta')],
+    [ICONS.Esporta, 'Salva copia sul dispositivo', exportImage],
+    [circ(12, 12, 3) + 'M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2', 'Opzioni di esportazione', () => openPanel('Esporta')],
     null,
-    ['★', 'Organizza', () => openPanel('Organizza')],
-    ['◉', 'Visualizza opzioni', viewOptions],
+    [ICONS.Organizza, 'Organizza', () => openPanel('Organizza')],
+    ['M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z' + circ(12, 12, 3), 'Visualizza opzioni', viewOptions],
     null,
-    ['＋', 'Crea predefinito', savePreset],
-    ['⧉', 'Copia impostazioni', copySettings],
-    ['⎘', 'Incolla impostazioni', pasteSettings, !clipboard],
-    ['↺', 'Applica da precedente', applyPrevious, !canPrev],
+    [ICONS.Profili + 'M18 2v6M15 5h6', 'Crea predefinito', savePreset],
+    ['M9 9h11v11H9zM5 15H4V4h11v1', 'Copia impostazioni', copySettings],
+    ['M8 4h8v3H8zM6 5H4v16h16V5h-2M9 14h6', 'Incolla impostazioni', pasteSettings, !clipboard],
+    ['M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4', 'Applica da precedente', applyPrevious, !canPrev],
     null,
-    ['▤', 'Versioni', () => openPanel('Versioni')],
-    ['⏲', 'Cronologia', () => openPanel('Cronologia')],
-    ['ⓘ', 'Info foto', () => openPanel('Info')],
-    ['▶', 'Avvia presentazione', startSlideshow],
+    [ICONS.Versioni, 'Versioni', () => openPanel('Versioni')],
+    [ICONS.Cronologia, 'Cronologia', () => openPanel('Cronologia')],
+    [ICONS.Info, 'Info foto', () => openPanel('Info')],
+    ['M7 4l13 8-13 8z', 'Avvia presentazione', startSlideshow],
   ];
   const box = el('div', { className: 'menu' });
   for (const it of items) {
     if (!it) { box.append(el('hr')); continue; }
     const [ic, label, fn, off] = it;
-    box.append(el('button', { disabled: !!off, onclick: () => { wrap.remove(); fn(); } }, el('span', { className: 'mi', textContent: ic }), label));
+    box.append(el('button', { disabled: !!off, onclick: () => { wrap.remove(); fn(); } }, el('span', { className: 'mi' }, svgIcon(ic)), label));
   }
   const wrap = el('div', { className: 'menu-wrap', onclick: e => { if (e.target === wrap) wrap.remove(); } }, box);
   document.body.append(wrap);
@@ -1429,6 +1468,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     thumbEngine = new Engine(document.createElement('canvas'));
   } catch (e) { document.body.textContent = 'Errore grafico: ' + e.message; console.error(e); return; }
   setupGestures();
+  // se il telefono libera la memoria grafica (foto molto grandi) il disegno diventerebbe nero: si ricrea il motore
+  $('view').addEventListener('webglcontextlost', e => { e.preventDefault(); loaded = false; toast('Memoria grafica esaurita: ricarico la foto…'); });
+  $('view').addEventListener('webglcontextrestored', async () => {
+    engine = new Engine($('view'));
+    if (curPhoto) { const keep = clone(params), h = clone(history.undo); await loadIntoEditor(curPhoto); params = keep; history.undo = h; renderPanel(); }
+  });
   $('fab').onclick = () => $('file').click();
   $('file').onchange = e => { const f = [...e.target.files]; e.target.value = ''; if (f.length) importFiles(f); };
   $('fileLut').onchange = e => { e.target.files[0] && openLut(e.target.files[0]); e.target.value = ''; };
@@ -1444,6 +1489,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) cmp.addEventListener(ev, () => setCmp(false));
   window.addEventListener('resize', redraw);
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveCurrent(); });
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
   await initLibrary();
 });
