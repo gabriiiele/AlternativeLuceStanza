@@ -92,6 +92,7 @@ async function createBackup() {
   }
   libStatus('');
   appSettings.lastBackup = Date.now(); saveAppSettings();
+  if (IS_NATIVE) { await nativeSave(files); renderLibrary(); return; }
   if (navigator.canShare && navigator.canShare({ files })) {
     try { await navigator.share({ files, title: 'Backup Luce Stanza' }); toast('Backup pronto'); renderLibrary(); return; }
     catch (e) { if (e.name === 'AbortError') { renderLibrary(); return; } }

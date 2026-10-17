@@ -202,6 +202,7 @@ const ICON = {
   grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z', album: 'M4 6h16v13H4zM8 3h8', star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z',
   flag: 'M5 21V4h11l-2 4 2 4H5', back: 'M15 5l-7 7 7 7', share: 'M12 3v12M7 8l5-5 5 5M5 14v6h14v-6', more: 'M5 12h.01M12 12h.01M19 12h.01',
   edit: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4',
+  phone: 'M7 2h10v20H7zM11 18h2',
   sort: 'M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4', trash: 'M5 7h14M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3', tag: 'M3 12V4h8l10 10-8 8z',
 };
 const icon = (name, size = 22) => {
@@ -222,10 +223,11 @@ function renderLibrary() {
   document.body.dataset.theme = appSettings.theme;
   const top = $('libTop'); top.innerHTML = '';
   const title = lib.view === 'album' ? (albums.find(a => a.id === lib.album)?.name || 'Album') : lib.view === 'albums' ? 'Album' : lib.view === 'settings' ? 'Impostazioni'
+    : lib.view === 'gallery' ? 'Galleria del telefono'
     : VIEWS.find(v => v[0] === lib.view)?.[1] || 'Libreria';
   if (lib.view === 'album') top.append(ibtn('back', () => { lib.view = 'albums'; renderLibrary(); }, 'Album'));
   top.append(el('h2', { textContent: title }), el('span', { className: 'spacer' }));
-  if (!['albums', 'settings'].includes(lib.view)) {
+  if (!['albums', 'settings', 'gallery'].includes(lib.view)) {
     top.append(ibtn('search', () => { lib.showSearch = !lib.showSearch; renderLibrary(); }, 'Cerca', lib.showSearch ? 'on' : ''),
       ibtn('filter', () => { lib.showFilters = !lib.showFilters; renderLibrary(); }, 'Filtri', lib.showFilters ? 'on' : ''),
       ibtn('check', () => { lib.selecting = !lib.selecting; lib.sel.clear(); renderLibrary(); }, 'Seleziona', lib.selecting ? 'on' : ''),
@@ -240,14 +242,17 @@ function renderLibrary() {
   }
   if (lib.view === 'albums') renderAlbums(body);
   else if (lib.view === 'settings') renderSettings(body);
+  else if (lib.view === 'gallery') renderGallery(body).catch(e => body.append(note('Galleria non disponibile: ' + e.message)));
   else renderGrid(body);
   const nav = $('libNav'); nav.innerHTML = '';
-  for (const [v, label, ic] of [['all', 'Libreria', 'grid'], ['albums', 'Album', 'album'], ['settings', 'Impostazioni', 'gear']]) {
+  const navItems = [['all', 'Libreria', 'grid'], ['albums', 'Album', 'album'], ['settings', 'Impostazioni', 'gear']];
+  if (NATIVE_OS === 'android') navItems.splice(1, 0, ['gallery', 'Galleria', 'phone']);   // app Android: Galleria del telefono
+  for (const [v, label, ic] of navItems) {
     const active = v === lib.view || (v === 'all' && VIEWS.some(x => x[0] === lib.view)) || (v === 'albums' && lib.view === 'album');
     const b = el('button', { className: 'navbtn' + (active ? ' on' : ''), onclick: () => { lib.view = v; lib.selecting = false; renderLibrary(); } });
     b.append(icon(ic), el('span', { textContent: label })); nav.append(b);
   }
-  $('fab').hidden = lib.view === 'settings' || lib.selecting;
+  $('fab').hidden = lib.view === 'settings' || lib.view === 'gallery' || lib.selecting;
   renderSelBar();
 }
 
@@ -413,6 +418,7 @@ async function batchExport() {
     files.push(await buildExport(params));
   }
   libStatus('');
+  if (IS_NATIVE) { await nativeSave(files); return; }
   if (navigator.canShare && navigator.canShare({ files })) { try { await navigator.share({ files }); return; } catch (e) { if (e.name === 'AbortError') return; } }
   for (const f of files) await saveFile(f);
 }
@@ -543,4 +549,5 @@ async function initLibrary() {
   albums.sort((a, b) => a.created - b.created);
   renderLibrary();
   await importInbox();
+  initNative();
 }

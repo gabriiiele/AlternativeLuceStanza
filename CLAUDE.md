@@ -40,6 +40,11 @@ Uso solo personale: niente reverse engineering o copia di codice/dati Adobe, sol
   Niente share target su iOS: si importa con + → Libreria foto. Avviso "Aggiungi alla schermata Home" (Safari cancella i dati dopo 7 giorni).
   Icone PNG (icon-180 per iOS). WebKit non è disponibile nell'ambiente: test fatti con Chromium + user agent iPhone.
 - AI: Super Resolution, look da descrizione, mappa di profondità e (dall'ultima richiesta) analisi del viso per beauty/maschere/sfondo.
+- App native (Capacitor 8): `android/` (plugin `LucePlugin.java`: Galleria MediaStore, `save` in Pictures/Download › Luce Stanza,
+  intent SEND/VIEW, `copyToCache`), `ios/` (SPM, Info.plist con permessi e condivisione File). `native.js`: `IS_NATIVE` (in compat.js),
+  `nativeSave` (scrittura a pezzi da 3 MB con Filesystem), vista libreria `gallery` solo su Android. Service worker disattivato nell'app.
+  Compilazione SOLO su GitHub Actions (`.github/workflows/app.yml`, maven Google bloccato qui) → release `app` (APK firmato con
+  la chiave nei secret `ANDROID_KEYSTORE` (base64 PKCS12, alias `luce`) e `ANDROID_KEYSTORE_PASSWORD`; MAI chiavi nella repo; IPA non firmata per Sideloadly/AltStore). Dopo modifiche ai file web basta il push.
 - Pubblicazione: GitHub Pages dal branch `claude/lightroom-mobile-reverse-engineer-717gjz` → https://gabriiiele.github.io/AlternativeLuceStanza/
 
 ## Struttura

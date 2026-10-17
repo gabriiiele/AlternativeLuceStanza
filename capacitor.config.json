@@ -1,0 +1,7 @@
+{
+  "appId": "it.gabriiiele.lucestanza",
+  "appName": "Luce Stanza",
+  "webDir": "www",
+  "backgroundColor": "#161616",
+  "ios": { "contentInset": "never", "backgroundColor": "#161616" }
+}

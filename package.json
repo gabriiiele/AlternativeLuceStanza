@@ -1,0 +1,21 @@
+{
+  "name": "luce-stanza",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Luce Stanza impacchettata come app Android e iPhone (Capacitor)",
+  "scripts": {
+    "www": "node scripts/build-www.mjs",
+    "android": "node scripts/build-www.mjs && npx cap sync android",
+    "ios": "node scripts/build-www.mjs && npx cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/filesystem": "8.1.5",
+    "@capacitor/ios": "8.5.3",
+    "@capacitor/share": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

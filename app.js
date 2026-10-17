@@ -1493,6 +1493,7 @@ function exportFocus(p) {
 /* ---------- Pubblica: formati social ---------- */
 
 async function saveFiles(files) {
+  if (IS_NATIVE) return nativeSave(files);
   if (files.length > 1 && navigator.canShare && navigator.canShare({ files })) {
     try { await navigator.share({ files }); return; } catch (e) { if (e.name === 'AbortError') return; }
   }
@@ -1936,7 +1937,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('resize', redraw);
   new ResizeObserver(() => redraw()).observe($('stage'));   // la tendina che si apre/chiude cambia lo spazio della foto
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveCurrent(); });
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
+  if (!IS_NATIVE && 'serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
   await initLibrary();
   if (appSettings.simpleMode) presetCat = 'Moda e beauty';
   loadTextFonts().then(() => loaded && drawOverlay());

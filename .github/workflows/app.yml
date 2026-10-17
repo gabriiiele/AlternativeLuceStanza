@@ -1,0 +1,110 @@
+# Compila l'app Android (APK) e l'app iPhone (IPA non firmata) a ogni modifica
+# e le pubblica nella release "app": https://github.com/gabriiiele/AlternativeLuceStanza/releases/tag/app
+name: App Android e iPhone
+
+on:
+  push:
+    branches: [claude/lightroom-mobile-reverse-engineer-717gjz]
+    paths-ignore: ['docs/**', '**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: app-build
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepara la pagina di download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view app -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create app -R "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "Luce Stanza – app per Android e iPhone" \
+            --notes "Android: scarica LuceStanza.apk dal telefono e aprilo. iPhone: LuceStanza.ipa va installata con Sideloadly o AltStore (vedi README)."
+
+  android:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm run android
+      - name: Chiave di firma
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE }}
+          KS_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/luce.p12"
+            echo "KEYSTORE_PASSWORD=$KS_PW" >> "$GITHUB_ENV"
+          else
+            # senza i secret: chiave provvisoria, per aggiornare bisognerà disinstallare l'app (e si perdono le foto importate)
+            echo "::warning::Secret ANDROID_KEYSTORE mancante: APK firmato con una chiave provvisoria"
+            PW=$(openssl rand -hex 16)
+            keytool -genkeypair -keystore "$RUNNER_TEMP/luce.p12" -storetype PKCS12 -storepass "$PW" -keypass "$PW" -alias luce \
+              -keyalg RSA -keysize 2048 -validity 20000 -dname "CN=Luce Stanza"
+            echo "KEYSTORE_PASSWORD=$PW" >> "$GITHUB_ENV"
+          fi
+          echo "KEYSTORE_FILE=$RUNNER_TEMP/luce.p12" >> "$GITHUB_ENV"
+      - name: Compila l'APK
+        working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+      - run: cp android/app/build/outputs/apk/release/app-release.apk LuceStanza.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LuceStanza-android
+          path: LuceStanza.apk
+      - name: Pubblica l'APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload app LuceStanza.apk --clobber -R "$GITHUB_REPOSITORY"
+
+  ios:
+    needs: release
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: Usa la versione più recente di Xcode
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)"
+          xcodebuild -version
+      - run: npm ci
+      - run: npm run ios
+      - name: Compila l'app iPhone (senza firma)
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} MARKETING_VERSION=1.0.${{ github.run_number }} build
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qr LuceStanza.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LuceStanza-iphone
+          path: LuceStanza.ipa
+      - name: Pubblica l'IPA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload app LuceStanza.ipa --clobber -R "$GITHUB_REPOSITORY"

@@ -438,6 +438,7 @@ async function buildCollage(p, details, opts = exportOpts) {
 }
 
 async function saveFile(f) {
+  if (IS_NATIVE) return nativeSave([f]);
   if (navigator.canShare && navigator.canShare({ files: [f] })) {
     try { await navigator.share({ files: [f] }); return; } catch (e) { if (e.name === 'AbortError') return; }
   }

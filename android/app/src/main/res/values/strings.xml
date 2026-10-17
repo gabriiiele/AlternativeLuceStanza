@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Luce Stanza</string>
+    <string name="title_activity_main">Luce Stanza</string>
+    <string name="package_name">it.gabriiiele.lucestanza</string>
+    <string name="custom_url_scheme">it.gabriiiele.lucestanza</string>
+</resources>

@@ -5,7 +5,9 @@
    l'orientamento EXIF, niente ImageCapture, niente "Condividi verso l'app". */
 
 const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const IS_STANDALONE = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+/* App installata come APK o app iPhone (Capacitor): vedi native.js */
+const IS_NATIVE = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
+const IS_STANDALONE = IS_NATIVE || (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
 /* Lato massimo di un canvas: su iPhone 4096 (4096 × 4096 = limite di area di Safari), altrove 16384 */
 const CANVAS_MAX_SIDE = IS_IOS ? 4096 : 16384;
 const CANVAS_MAX_AREA = IS_IOS ? 16.7e6 : 260e6;

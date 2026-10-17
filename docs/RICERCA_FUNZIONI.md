@@ -107,7 +107,8 @@ Una vera navigazione della Galleria richiederebbe di impacchettare l'app come AP
 | Rimozione dei "fantasmi" nell'HDR (oggetti in movimento) | ⬜ |
 | Panorama sferico / prospettico, più righe | ⬜ |
 | Più campioni per l'intervallo colore | ⬜ |
-| Versione APK nativa con accesso diretto alla Galleria | ⬜ |
+| Versione APK nativa con accesso diretto alla Galleria | ✅ (compilata su GitHub Actions, da provare sul telefono) |
+| App iPhone (IPA da installare con Sideloadly/AltStore) | ✅ (da provare su iPhone) |
 
 ## Esclusi in modo definitivo
 - Le funzioni AI non richieste (maschere soggetto/cielo/persone, rimozione generativa, denoise AI).
@@ -116,7 +117,7 @@ Una vera navigazione della Galleria richiederebbe di impacchettare l'app come AP
 - Acquisizione DNG dalla fotocamera: il browser riceve solo JPEG dalla fotocamera.
 
 ## Limiti tecnici attuali
-- L'immagine viene elaborata fino a 4096 px sul lato lungo (limite pratico della GPU dei telefoni).
+- L'immagine viene elaborata a piena risoluzione fino al limite della GPU del telefono (di solito 8192-16384 px; 4096 su iPhone).
 - Elaborazione a 8 bit per canale.
 
 ## Realismo e iPhone
