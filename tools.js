@@ -19,6 +19,22 @@ function setAnalysisImage(bmp) {
   imgInfo.small = make(256); imgInfo.med = make(512);
 }
 
+/* Rumore del sensore (deviazione standard 0..1), stimato con la mediana del laplaciano su un ritaglio a piena risoluzione:
+   serve a reintegrare la stessa grana nelle zone sfocate, così non sembrano finte */
+function estimateNoise(canvas) {
+  const s = Math.min(512, canvas.width, canvas.height);
+  if (s < 16) return 0;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const d = ctx.getImageData((canvas.width - s) >> 1, (canvas.height - s) >> 1, s, s).data, g = new Float32Array(s * s), v = [];
+  for (let i = 0; i < s * s; i++) g[i] = 0.2126 * d[i * 4] + 0.7152 * d[i * 4 + 1] + 0.0722 * d[i * 4 + 2];
+  for (let y = 1; y < s - 1; y += 2) for (let x = 1; x < s - 1; x += 2) {
+    const i = y * s + x;
+    v.push(Math.abs(4 * g[i] - g[i - 1] - g[i + 1] - g[i - s] - g[i + s]));
+  }
+  v.sort((a, b) => a - b);
+  return Math.min(0.04, v[v.length >> 1] / 0.6745 / Math.sqrt(20) / 255);
+}
+
 /* Colore medio (0..1) attorno a un punto in coordinate immagine */
 function sampleIc(ic, rad = 2, d = imgInfo.small) {
   const cx = Math.round(ic[0] * (d.width - 1)), cy = Math.round(ic[1] * (d.height - 1));
@@ -587,6 +603,7 @@ function setupGestures() {
     if (toolActive && !ptrs.size) { toolUp(); toolActive = false; }
   };
   st.addEventListener('pointerup', end); st.addEventListener('pointercancel', end);
+  st.addEventListener('contextmenu', e => e.preventDefault());   // niente menu "Salva immagine" tenendo premuto (iPhone/Android)
   st.addEventListener('pointerleave', () => { tool.cursor = null; drawOverlay(); });
   st.addEventListener('wheel', e => {
     e.preventDefault();

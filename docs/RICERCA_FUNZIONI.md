@@ -118,3 +118,13 @@ Una vera navigazione della Galleria richiederebbe di impacchettare l'app come AP
 ## Limiti tecnici attuali
 - L'immagine viene elaborata fino a 4096 px sul lato lungo (limite pratico della GPU dei telefoni).
 - Elaborazione a 8 bit per canale.
+
+## Realismo e iPhone
+| Funzione | Stato |
+|---|---|
+| Ombre/alte luci locali in luce lineare, contrasto a S, compressione morbida delle alte luci, saturazione senza tagli, vividezza che protegge la pelle | ✅ |
+| Chiarezza/texture senza aloni sui bordi forti, vignettatura e bagliore fisici, alone pellicola solo attorno alle luci | ✅ |
+| Limiti di realismo su preset e Look AI | ✅ |
+| Sfocatura con profondità senza alone, bokeh morbido, rumore del sensore reintegrato, mappa rifinita sui bordi | ✅ |
+| Azioni rapide con la profondità: sfondo sfocato, soggetto in risalto, foschia atmosferica, maschere | ✅ |
+| Compatibilità iPhone (Safari): limiti dei canvas, HEIC/orientamento, icona Home, niente zoom sui campi, avviso installazione | ✅ (provata con simulazione, non su iPhone reale) |

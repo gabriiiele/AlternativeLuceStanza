@@ -214,6 +214,24 @@ P('Città e Cibo', 'Prodotto Pulito', { exp: 0.25, contrast: 0.1, sat: -0.05, cl
 P('Città e Cibo', 'Macro Natura', { exp: 0.05, contrast: 0.15, vib: 0.4, clarity: 0.2, texture: 0.3, sharp: 0.5, glow: 0.1, curve: S_CURVE });
 P('Città e Cibo', 'Vecchia Cartolina', { exp: 0.05, contrast: -0.1, temp: 0.25, sat: -0.25, fade: 0.4, grain: 0.35, vig: 0.4, gsH: 40, gsS: 0.3, ghH: 50, ghS: 0.3, curve: MATTE });
 
+/* ===== Realismo =====
+   Oltre certe soglie alcuni effetti rendono la foto "finta" (aloni, colori al neon, pelle di plastica, frange).
+   I preset inclusi e i look generati vengono contenuti entro questi limiti; a mano si può sempre andare oltre. */
+const REALISM_LIMITS = {
+  contrast: [-0.6, 0.4], clarity: [-0.4, 0.35], texture: [-0.4, 0.3], dehaze: [-0.35, 0.3], vib: [-1, 0.4], sat: [-1, 0.2],
+  sh: [-0.5, 0.45], hi: [-0.6, 0.3], sharp: [0, 0.6], glow: [0, 0.4], halation: [0, 0.4], ca: [0, 0.3], grain: [0, 0.55],
+  gsS: [0, 0.45], gmS: [0, 0.4], ghS: [0, 0.45], ggS: [0, 0.3],
+};
+function limitRealism(def) {
+  const mono = (def.mono || 0) >= 1;                        // i duotoni in bianco e nero possono usare tinte forti
+  for (const [k, [lo, hi]] of Object.entries(REALISM_LIMITS)) {
+    if (typeof def[k] !== 'number' || (mono && /S$/.test(k))) continue;
+    def[k] = Math.max(lo, Math.min(hi, def[k]));
+  }
+  return def;
+}
+PRESET_DEFS.forEach(e => limitRealism(e.def));
+
 /* ===== Costruzione dei preset ===== */
 
 const PRESET_CATEGORIES = ['Cinema', 'Pellicola', 'Estetici', 'B&N', 'Ritratto', 'Paesaggio', 'Città e Cibo'];

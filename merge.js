@@ -349,7 +349,7 @@ async function mergePanorama(canvases, { focal35 = 26, crop = true, onProgress =
   const minX = Math.min(...pos.map(p => p[0])), minY = Math.min(...pos.map(p => p[1]));
   const maxX = Math.max(...pos.map((p, i) => p[0] + lowSizes[i][0])), maxY = Math.max(...pos.map((p, i) => p[1] + lowSizes[i][1]));
   const fullK = Math.min(...lows.map(l => 1 / l.k));                     // scala piena rispetto all'analisi
-  let S = Math.min(fullK, 8192 / Math.max(maxX - minX, maxY - minY), Math.sqrt(32e6 / ((maxX - minX) * (maxY - minY))));
+  let S = Math.min(fullK, Math.min(8192, CANVAS_MAX_SIDE) / Math.max(maxX - minX, maxY - minY), Math.sqrt(Math.min(32e6, CANVAS_MAX_AREA * 0.95) / ((maxX - minX) * (maxY - minY))));
   const OW = Math.round((maxX - minX) * S), OH = Math.round((maxY - minY) * S);
   const out = canvasOf(OW, OH), octx = out.getContext('2d', { willReadFrequently: true });
   const fin = octx.createImageData(OW, OH), fd = fin.data;

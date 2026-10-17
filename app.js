@@ -893,8 +893,8 @@ const sr = { id: null, w: 0, h: 0, target: 0, fast: false };
 async function srDims() {
   if (sr.id === curPhoto.id) return;
   const blob = (curPhoto.raw && await DB.get('decoded', curPhoto.id)) || await DB.get('files', curPhoto.id);
-  const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
-  Object.assign(sr, { id: curPhoto.id, w: bmp.width, h: bmp.height, target: Math.min(SR_LIMIT, Math.max(bmp.width, bmp.height) * 2) });
+  const bmp = await decodeImage(blob), bw = imgW(bmp), bh = imgH(bmp);
+  Object.assign(sr, { id: curPhoto.id, w: bw, h: bh, target: Math.min(SR_LIMIT, Math.max(bw, bh) * 2) });
   bmp.close?.();
 }
 
@@ -947,6 +947,10 @@ PANELS['Profondità'] = p => {
     } catch (e) { alert('Profondità: ' + e.message + '\n(serve una connessione la prima volta)'); console.error(e); }
     aiBusy = false; renderPanel();
   }, 'primary'), engine.hasDepth ? toggle('Mostra mappa', () => showDepth, v => { showDepth = v; }, true) : null), bar);
+  if (engine.hasDepth) p.append(section('Usa la profondità'), note('Un tocco applica l\'effetto; poi puoi rifinirlo nella sua sezione.'),
+    actions(btn('Sfondo sfocato (ritratto)', depthPortrait, 'primary'), btn('Soggetto in risalto', depthSubjectPop),
+      btn('Foschia atmosferica', depthHaze)),
+    actions(btn('Maschera primo piano', () => depthMask(true)), btn('Maschera sfondo', () => depthMask(false))));
   if (engine.hasDepth && showDepth && depthData) {
     const c = el('canvas', { className: 'depthprev', width: depthData.w, height: depthData.h });
     c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(depthData.d), depthData.w, depthData.h), 0, 0);
@@ -954,6 +958,49 @@ PANELS['Profondità'] = p => {
   }
 };
 let showDepth = false;
+
+/* Profondità del soggetto principale: le zone più vicine che occupano una parte significativa della foto */
+function subjectDepth() {
+  const d = depthData.d, v = [];
+  for (let i = 0; i < d.length; i += 4 * 7) v.push(d[i]);
+  v.sort((a, b) => a - b);
+  return v[Math.floor(v.length * 0.85)] / 255;
+}
+function addDepthMask(name, lo, hi, smooth, adj) {
+  if (params.masks.length >= MAX_MASKS) { toast('Hai già il numero massimo di maschere'); return null; }
+  const m = newMask('depth', params.masks.length + 1);
+  m.name = name; Object.assign(m.comps[0], { lo: Math.max(0, lo), hi: Math.min(1, hi), smooth });
+  Object.assign(m.adj, adj);
+  params.masks.push(m);
+  return m;
+}
+function depthPortrait() {
+  commit('Sfondo sfocato');
+  Object.assign(params, { lbType: 'depth', lbAmt: 0.55, lbFocus: subjectDepth(), lbSize: 0.1, lbFeather: 0.35, lbBokeh: 0.3 });
+  curTab = 'Sfocatura'; renderTabs(); renderPanel();
+  toast('Tocca il soggetto per scegliere cosa resta a fuoco');
+}
+function depthSubjectPop() {
+  commit('Soggetto in risalto');
+  const s = subjectDepth();
+  addDepthMask('Soggetto (profondità)', s - 0.15, 1, 0.12, { exp: 0.15, clarity: 0.08, sat: 0.05 });
+  addDepthMask('Sfondo (profondità)', 0, s - 0.15, 0.12, { exp: -0.25, sat: -0.1, clarity: -0.05 });
+  renderPanel(); toast('Soggetto schiarito, sfondo leggermente attenuato');
+}
+function depthHaze() {
+  commit('Foschia atmosferica');
+  addDepthMask('Foschia (profondità)', 0, subjectDepth() * 0.6, 0.25, { dehaze: -0.35, contrast: -0.12, sat: -0.15, exp: 0.06 });
+  renderPanel(); toast('Foschia aggiunta sulle zone lontane');
+}
+function depthMask(front) {
+  commit('Maschera profondità');
+  const s = subjectDepth();
+  const m = front ? addDepthMask('Primo piano', s - 0.15, 1, 0.12, {}) : addDepthMask('Sfondo', 0, s - 0.15, 0.12, {});
+  if (!m) return;
+  maskIdx = params.masks.length - 1; compIdx = 0;
+  curTab = 'Maschere'; renderTabs(); renderPanel();
+  toast('Maschera creata: ora scegli le regolazioni');
+}
 
 PANELS['Calibrazione'] = p => {
   p.append(group('Ombre', true, S('calSh', 'Tinta', -1, 1, 0.01, { bg: BG.tint })),
@@ -1258,7 +1305,7 @@ PANELS['Esporta'] = p => {
     i.oninput = () => { o[key] = i.value; };
     return el('div', { className: 'row' }, el('label', { textContent: label }), i, el('span'));
   };
-  const fmts = [['image/jpeg', 'JPEG'], ['image/png', 'PNG'], ['image/tiff', 'TIFF (8 bit)'], ['image/webp', 'WebP'], ...(supportsAvif ? [['image/avif', 'AVIF']] : [])];
+  const fmts = [['image/jpeg', 'JPEG'], ['image/png', 'PNG'], ['image/tiff', 'TIFF (8 bit)'], ...(supportsWebp ? [['image/webp', 'WebP']] : []), ...(supportsAvif ? [['image/avif', 'AVIF']] : [])];
   p.append(section('File'), sel('Formato', fmts, 'fmt', renderPanel),
     ['image/jpeg', 'image/webp', 'image/avif'].includes(o.fmt) ? slider('Qualità', 0.3, 1, 0.01, () => o.quality, v => { o.quality = v; }, { neutral: 0.92 }) : null,
     text('Nome file', 'name'), note('Segnaposto: {nome} {data} {ora} {n}'),
@@ -1396,13 +1443,14 @@ async function loadIntoEditor(rec, show = true) {
   fileName = rec.name;
   exifData = { app1: src.app1 || null, tags: rec.exif || src.tags || {} };
   engine.setImage(src.canvas, src.canvas.width, src.canvas.height);
+  engine.noise = estimateNoise(src.canvas);
   const ts = scaledCanvas(src.canvas, 256);
   thumbEngine.setImage(ts, ts.width, ts.height); thumbCache.clear();
   setAnalysisImage(src.canvas);
   for (const k in brushCache) delete brushCache[k];
   depthData = null;
   const dep = await DB.get('depth', rec.id);
-  if (dep) setDepthCanvas(scaledCanvas(await createImageBitmap(dep), 1024));
+  if (dep) setDepthCanvas(scaledCanvas(await decodeImage(dep), 1024));
   loaded = true;
   params = Object.assign(defaults(), rec.edits ? clone(rec.edits) : {});
   history.undo = clone(rec.history || []); history.redo = [];
@@ -1481,7 +1529,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   $('file').onchange = e => { const f = [...e.target.files]; e.target.value = ''; if (f.length) importFiles(f); };
   $('fileLut').onchange = e => { e.target.files[0] && openLut(e.target.files[0]); e.target.value = ''; };
   $('filePreset').onchange = e => { e.target.files.length && importPresets([...e.target.files]); e.target.value = ''; };
-  $('fileWm').onchange = async e => { const f = e.target.files[0]; if (f) { exportOpts.wmImage = await createImageBitmap(f); renderPanel(); } e.target.value = ''; };
+  $('fileWm').onchange = async e => { const f = e.target.files[0]; if (f) { exportOpts.wmImage = await decodeImage(f); renderPanel(); } e.target.value = ''; };
   $('btnBack').onclick = closeEditor;
   $('btnUndo').onclick = undo; $('btnRedo').onclick = redo;
   $('btnReset').onclick = resetAll; $('btnMenu').onclick = openMenu;

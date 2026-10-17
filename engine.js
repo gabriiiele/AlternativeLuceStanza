@@ -137,7 +137,7 @@ class Engine {
     const gl = this.gl = canvas.getContext('webgl2', o) || canvas.getContext('webgl', o);
     if (!gl) throw new Error('WebGL non disponibile');
     this.gl2 = typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext;
-    this.maxSize = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), 16384);
+    this.maxSize = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), CANVAS_MAX_SIDE);
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     this.main = this.program(SH_MAIN, SH_VERT_MAIN);
@@ -446,6 +446,7 @@ class Engine {
     gl.uniform4fv(u.uGrainRes, [G.outW, G.outH, width, height]);
     gl.uniform4fv(u.uBlurA, [p.lbAmt, { radial: 0, linear: 1, depth: this.hasDepth ? 2 : 0 }[p.lbType], p.lbX, p.lbY]);
     f1('uLbFocus', p.lbFocus);
+    f1('uNoise', this.noise || 0);
     gl.uniform4fv(u.uBlurB, [p.lbSize, p.lbAngle * Math.PI / 180, p.lbFeather, p.lbBokeh]);
     f1('uLutAmt', this.lutSize > 0 ? p.lutAmt : 0); f1('uLutSize', this.lutSize || 2);
     const MK = new Float32Array(MAX_MASKS * 20);

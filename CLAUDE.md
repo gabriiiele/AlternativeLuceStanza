@@ -8,6 +8,16 @@ Uso solo personale: niente reverse engineering o copia di codice/dati Adobe, sol
 - Fasi 1, 2 e 3 completate: motore, libreria, RAW, AI richieste, backup .zip, cestino (30 giorni), confronto tenendo
   premuto sulla foto (il pulsante ◐ è stato tolto su richiesta), unione HDR/panorama, fotocamera, curva nelle maschere.
 - Possibili passi successivi: deghosting HDR, panorami sferici, APK nativo per la Galleria. Stato completo: `docs/RICERCA_FUNZIONI.md`.
+- PRIORITÀ DELL'UTENTE: le foto non devono mai sembrare finte. Ombre/luci sono un guadagno locale moltiplicativo in luce lineare
+  (riferimento = pixel/dintorni solo dove simili, niente aloni), contrasto = curva a S (tanh) sulla luminanza, `softShoulder` sulle
+  alte luci, `fitGamut` al posto di clamp (desatura invece di tagliare i canali), vividezza che risparmia la pelle, vignettatura
+  e bagliore in luce lineare. Preset e Look AI passano da `limitRealism` (presets.js). Non reintrodurre effetti additivi in sRGB.
+- Sfocatura con profondità: raccolta che esclude i campioni del soggetto a fuoco (niente alone), livelli presfocati per raggi grandi,
+  rumore del sensore reintegrato (`engine.noise` da `estimateNoise`); mappa rifinita con filtro guidato (`refineDepth`).
+  Pannello Profondità: azioni rapide (sfondo sfocato, soggetto in risalto, foschia, maschere primo piano/sfondo).
+- iPhone: `compat.js` (IS_IOS, CANVAS_MAX_SIDE 4096 / area 16,7 MP su Safari, `decodeImage` via <img> per HEIC/EXIF, `supportsWebp`).
+  Niente share target su iOS: si importa con + → Libreria foto. Avviso "Aggiungi alla schermata Home" (Safari cancella i dati dopo 7 giorni).
+  Icone PNG (icon-180 per iOS). WebKit non è disponibile nell'ambiente: test fatti con Chromium + user agent iPhone.
 - AI: l'utente vuole SOLO Super Resolution, look da descrizione ("preset adattivi") e mappa di profondità. Niente altre funzioni AI.
 - Pubblicazione: GitHub Pages dal branch `claude/lightroom-mobile-reverse-engineer-717gjz` → https://gabriiiele.github.io/AlternativeLuceStanza/
 

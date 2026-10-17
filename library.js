@@ -47,9 +47,9 @@ const maxSide = () => (typeof engine !== 'undefined' && engine ? engine.maxSize 
 /* Restituisce { canvas (al massimo max px sul lato lungo), tags, taken, app1 } */
 async function decodePhoto(blob, name, max = maxSide()) {
   if (RAW_RE.test(name)) return decodeRaw(blob);
-  const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
-  const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
-  const c = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
+  const bmp = await decodeImage(blob), bw = imgW(bmp), bh = imgH(bmp);
+  const k = Math.min(1, max / Math.max(bw, bh), Math.sqrt(CANVAS_MAX_AREA / (bw * bh)));
+  const c = Object.assign(document.createElement('canvas'), { width: Math.round(bw * k), height: Math.round(bh * k) });
   const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(bmp, 0, 0, c.width, c.height);
   bmp.close?.();
   const ex = readExif(await blob.slice(0, 256 * 1024).arrayBuffer());
@@ -228,6 +228,12 @@ function renderLibrary() {
       ibtn('camera', openCamera, 'Fotocamera'));
   }
   const body = $('libBody'); body.innerHTML = '';
+  // iPhone: l'app va aggiunta alla schermata Home, altrimenti Safari può cancellare i dati dopo 7 giorni senza uso
+  if (IS_IOS && !IS_STANDALONE && !appSettings.iosHintClosed) {
+    body.append(el('div', { className: 'iosbar' },
+      el('span', { textContent: 'Su iPhone tocca Condividi ⬆︎ in Safari e scegli «Aggiungi alla schermata Home». Così l\'app si apre a schermo intero e Safari non cancella le tue foto se non la usi per qualche giorno.' }),
+      btn('✕', () => { appSettings.iosHintClosed = true; saveAppSettings(); renderLibrary(); })));
+  }
   if (lib.view === 'albums') renderAlbums(body);
   else if (lib.view === 'settings') renderSettings(body);
   else renderGrid(body);
@@ -312,7 +318,7 @@ function fillGrid() {
     thumbObserver.observe(cell);
   }
   $('libCount').textContent = list.length ? `${list.length} foto` : lib.view === 'trash' ? 'Il cestino è vuoto.'
-    : (livePhotos().length ? 'Nessuna foto con questi filtri.' : 'Nessuna foto: tocca + per importare dalla galleria, oppure condividi delle foto con l\'app dalla Galleria di Android.');
+    : (livePhotos().length ? 'Nessuna foto con questi filtri.' : (IS_IOS ? 'Nessuna foto: tocca + e scegli «Libreria foto» per importare dalle Foto di iPhone.' : 'Nessuna foto: tocca + per importare dalla galleria, oppure condividi delle foto con l\'app dalla Galleria di Android.'));
 }
 
 /* ---------- Selezione multipla e azioni in blocco ---------- */
@@ -479,8 +485,9 @@ async function renderSettings(body) {
     actions(btn('Crea backup', () => createBackup().catch(e => { libStatus(''); alert('Backup: ' + e.message); }), 'primary'),
       btn('Ripristina da backup', () => $('fileBackup').click())),
     note('Il backup contiene originali, modifiche, versioni, album, preset personali e impostazioni (non la chiave API).'),
-    section('Galleria'),
-    note('Per aprire foto direttamente dalla Galleria: seleziona le foto nella Galleria, tocca Condividi e scegli Luce Stanza (dopo aver installato l\'app dal menu di Chrome).'),
+    section(IS_IOS ? 'Foto di iPhone' : 'Galleria'),
+    ...(IS_IOS ? [note('Tocca + e scegli «Libreria foto» per importare dalle Foto (puoi selezionarne molte insieme). Per salvare nelle Foto un\'esportazione, nel menu che si apre scegli «Salva immagine».')] : []),
+    ...(IS_IOS ? [] : [note('Per aprire foto direttamente dalla Galleria: seleziona le foto nella Galleria, tocca Condividi e scegli Luce Stanza (dopo aver installato l\'app dal menu di Chrome).')]),
     section('Esportazione'),
     actions(btn('Usa le impostazioni di esportazione attuali come predefinite', () => {
       const o = { ...exportOpts, wmImage: null }; try { localStorage.setItem('exportOpts', JSON.stringify(o)); toast('Salvate'); } catch { /* spazio pieno */ }

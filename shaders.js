@@ -181,6 +181,7 @@ uniform float uGlow, uHal, uCa;
 uniform vec4 uBlurA;       // quantità, tipo, x, y
 uniform vec4 uBlurB;       // dimensione, angolo, sfumatura, bokeh
 uniform float uLbFocus;    // profondità a fuoco (modo profondità)
+uniform float uNoise;      // rumore stimato del sensore (deviazione standard, 0..1)
 uniform float uLutAmt, uLutSize;
 // maschere
 uniform vec4 uMk[40];      // 8 maschere x 5 vec4
@@ -243,6 +244,26 @@ vec3 curveEntry(float i){
   hi = floor(hi * 255.0 + 0.5); lo = floor(lo * 255.0 + 0.5);
   return clamp((hi * 256.0 + lo) / 65535.0, 0.0, 1.0);
 }
+/* Riporta un colore fuori gamma dentro [0,1] riducendo la saturazione invece di tagliare i canali (la tinta non cambia) */
+vec3 fitGamut(vec3 c){
+  float g = clamp(luma(c), 0.0, 1.0), t = 1.0;
+  for (int i = 0; i < 3; i++) {
+    float v = i == 0 ? c.r : i == 1 ? c.g : c.b;
+    if (v > 1.0) t = min(t, (1.0 - g) / max(v - g, 1e-5));
+    else if (v < 0.0) t = min(t, g / max(g - v, 1e-5));
+  }
+  return clamp(vec3(g) + (c - vec3(g)) * t, 0.0, 1.0);
+}
+/* Spalla morbida sulle alte luci (in luce lineare): sopra 0,8 la luce viene compressa gradualmente invece di bruciare */
+vec3 softShoulder(vec3 c){
+  float m = max(c.r, max(c.g, c.b));
+  if (m <= 0.8) return c;
+  float mm = 0.8 + 0.2 * (1.0 - exp(-(m - 0.8) / 0.2));
+  return c * (mm / m);
+}
+float atanh1(float x){ return 0.5 * log((1.0 + x) / (1.0 - x)); }
+float tanhf(float x){ float e = exp(2.0 * clamp(x, -10.0, 10.0)); return (e - 1.0) / (e + 1.0); }
+
 float curveAt(float x, int ch){
   float f = clamp(x, 0.0, 1.0) * 1023.0, i0 = floor(f), t = f - i0;
   vec3 a = curveEntry(i0), b = curveEntry(min(i0 + 1.0, 1023.0));
@@ -311,20 +332,34 @@ void main(){
     vec2 p = (ic - uBlurA.zw) * vec2(uSa, 1.0);
     float ca = cos(uBlurB.y), sn = sin(uBlurB.y), d;
     vec2 r = vec2(ca * p.x + sn * p.y, -sn * p.x + ca * p.y);
-    float far = 1.0;
-    if (uBlurA.y > 1.5) { d = abs(texture2D(uDepth, uv).r - uLbFocus); far = clamp(d * 3.0, 0.3, 1.0); }   // 2 = mappa di profondità
+    float far = 1.0, dC = 0.0;
+    bool depthMode = uBlurA.y > 1.5;                                   // 2 = mappa di profondità
+    float fw = 0.02 + uBlurB.z * 0.5;
+    if (depthMode) { dC = texture2D(uDepth, uv).r; d = abs(dC - uLbFocus); far = clamp(d * 2.5, 0.25, 1.0); }
     else d = uBlurA.y < 0.5 ? length(r) : abs(r.y);
-    float focus = 1.0 - smoothstep(uBlurB.x, uBlurB.x + 0.02 + uBlurB.z * 0.5, d);
+    float focus = 1.0 - smoothstep(uBlurB.x, uBlurB.x + fw, d);
     float rad = uBlurA.x * (1.0 - focus) * 0.03 * far;
     if (rad > 0.0005) {
+      float radPx = rad / uTexel.y;                                     // raggio in pixel della sorgente
       vec3 acc = vec3(0.0); float ws = 0.0;
       for (int k = 0; k < 32; k++) {
         float fk = float(k) + 0.5, a = fk * 2.39996, rr = sqrt(fk / 32.0) * rad;
-        vec3 s = tex(uv + vec2(cos(a) * rr / uSa, sin(a) * rr));
+        vec2 tuv = uv + vec2(cos(a) * rr / uSa, sin(a) * rr);
+        // raggi grandi: si campionano livelli già sfocati, così il bokeh è morbido e senza puntini
+        vec3 s = radPx > 40.0 ? texture2D(uBlur2, tuv).rgb : radPx > 10.0 ? texture2D(uBlur1, tuv).rgb : tex(tuv);
         float w = 1.0 + uBlurB.w * 12.0 * pow(luma(s), 4.0);
+        if (depthMode) {
+          // un soggetto a fuoco più vicino non deve "colare" sullo sfondo sfocato (niente alone attorno alla figura)
+          float dT = texture2D(uDepth, tuv).r;
+          float fT = 1.0 - smoothstep(uBlurB.x, uBlurB.x + fw, abs(dT - uLbFocus));
+          w *= 1.0 - fT * smoothstep(0.0, 0.025, dT - dC);
+        }
         acc += s * w; ws += w;
       }
-      c = acc / ws;
+      c = acc / max(ws, 1e-4);
+      // il rumore del sensore sparisce dove si sfoca: lo si reintegra uguale al resto della foto (altrimenti sembra plastica)
+      vec2 np = floor(uv / uTexel);
+      c += (hash(np) + hash(np + 17.3) + hash(np + 41.9) - 1.5) * 2.0 * uNoise * smoothstep(1.5, 6.0, radPx);
     }
   }
 
@@ -366,10 +401,11 @@ void main(){
   // --- texture, chiarezza, foschia ---
   float tx = uTex + L2.z, cl = uClar + L2.w, dz = uDehaze + L3.x;
   // contrasto locale solo sulla luminanza, rispetto a vere sfocature gaussiane (niente aloni né blocchi di colore del JPEG)
-  if (tx != 0.0) c += (luma(c) - luma(texture2D(uBlur1, uv).rgb)) * tx * 1.6;
+  if (tx != 0.0) { float d = luma(c) - luma(texture2D(uBlur1, uv).rgb); c += d / (1.0 + abs(d) * 8.0) * tx * 1.9; }
   if (cl != 0.0) {
     float y = luma(c), d = y - luma(texture2D(uBlur2, uv).rgb);
-    c += d * cl * 1.3 * (0.35 + 0.65 * (1.0 - abs(clamp(y, 0.0, 1.0) * 2.0 - 1.0)));
+    d = d / (1.0 + abs(d) * 5.0);                                  // sui bordi molto contrastati l'effetto si attenua: niente aloni
+    c += d * cl * 1.7 * (0.35 + 0.65 * (1.0 - abs(clamp(y, 0.0, 1.0) * 2.0 - 1.0)));
   }
   if (dz > 0.0) {
     vec3 b = texture2D(uBlur3, uv).rgb;
@@ -392,10 +428,11 @@ void main(){
   vec3 glowSrc = vec3(0.0); float halSrc = 0.0;
   if (uGlow > 0.0 || uHal > 0.0) {
     vec3 gb = (texture2D(uBlur2, uv).rgb + texture2D(uBlur3, uv).rgb * 2.0) / 3.0;
-    glowSrc = max(gb - 0.55, 0.0);
-    halSrc = max(luma(gb) - 0.6, 0.0);
+    glowSrc = toLin(gb) * smoothstep(0.55, 0.95, luma(gb));          // solo le luci forti diffondono
+    halSrc = smoothstep(0.6, 0.95, luma(texture2D(uBlur2, uv).rgb));   // alone rosso attorno alle luci forti (pellicola)
   }
   c = clamp(c, 0.0, 1.0);
+  float lSrc = max(luma(c), 1e-4);                                 // luminanza prima delle regolazioni (per ombre/luci locali)
 
   // --- lineare: vignettatura obiettivo, esposizione, bilanciamento, calibrazione ---
   c = toLin(c);
@@ -409,16 +446,31 @@ void main(){
   c = max(uCal * c, 0.0);
   float ly = luma(c);
   c *= 1.0 + vec3(uCalSh * 0.1, -uCalSh * 0.2, uCalSh * 0.1) * (1.0 - smoothstep(0.0, 0.25, ly));
+  // ombre / alte luci come esposizione locale: la luminanza di riferimento mescola il pixel e i suoi dintorni
+  // (solo dove sono simili, così sui bordi non nascono aloni); il guadagno moltiplica la luce e conserva i colori
+  float shA = uSh + L0.w, hiA = uHi + L0.z;
+  if (shA != 0.0 || hiA != 0.0) {
+    float lp = toSrgb(vec3(luma(c))).r;
+    float lb = lp * luma(texture2D(uBlur2, uv).rgb) / lSrc;
+    float lr = mix(lp, lb, 0.65 * exp(-(lp - lb) * (lp - lb) / 0.02));
+    float wSh = 1.0 - smoothstep(0.0, 0.5, lr), wHi = smoothstep(0.42, 1.0, lr);
+    c *= exp2(shA * 1.6 * wSh * wSh + hiA * 1.3 * wHi);
+  }
+  c = softShoulder(c);
   c = toSrgb(c);
 
-  // --- neri / bianchi, ombre / alteluci, contrasto ---
+  // --- neri / bianchi, contrasto ---
   float bp = -(uBl + L1.y) * 0.15, wp = 1.0 - (uWh + L1.x) * 0.15;
   c = (c - bp) / (wp - bp);
-  float l = luma(c);
-  c += (uSh + L0.w) * 0.35 * (1.0 - smoothstep(0.0, 0.55, l)) * (1.0 - l) + (uHi + L0.z) * 0.35 * smoothstep(0.45, 1.0, l) * l;
-  float kc = uContrast + L0.y;
-  float k = kc >= 0.0 ? 1.0 + kc * 1.2 : 1.0 + kc * 0.8;
-  c = clamp((c - 0.5) * k + 0.5, 0.0, 1.0);
+  // contrasto con curva a S sulla luminanza: estremi morbidi, nessun taglio netto di bianchi e neri
+  float kc = clamp(uContrast + L0.y, -1.0, 1.0);
+  if (kc != 0.0) {
+    float y = clamp(luma(c), 0.0, 1.0), yc;
+    if (kc > 0.0) { float a = kc * 4.5; yc = 0.5 + 0.5 * tanhf(a * (y - 0.5)) / tanhf(a * 0.5); }
+    else { float b = -kc * 3.0, t = tanhf(b * 0.5); yc = 0.5 + atanh1(clamp((y - 0.5) * 2.0 * t, -0.999, 0.999)) / b; }
+    c = mix(c + (yc - y), c * (yc / max(y, 1e-4)), 0.5);
+  }
+  c = fitGamut(c);
 
   // --- mixer colore HSL, mix bianco e nero, colore punto ---
   vec3 hsl = rgb2hsl(c);
@@ -452,9 +504,11 @@ void main(){
   // --- vividezza, saturazione, bianco e nero ---
   float g = luma(c);
   float cs = max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b));
-  c = mix(vec3(g), c, max(1.0 + uVib * (1.0 - cs) + uSat + L2.y, 0.0));
+  // la vividezza risparmia gli incarnati (tonalità 15°-50°), come in Lightroom
+  float skin = smoothstep(0.08, 0.2, cs) * (1.0 - smoothstep(0.0, 22.0, hueDist(rgb2hsl(c).x, 32.0)));
+  c = mix(vec3(g), c, max(1.0 + uVib * (1.0 - cs) * (1.0 - 0.6 * skin) + uSat + L2.y, 0.0));
   if (uBW > 0.0) c = mix(c, vec3(clamp(luma(c) * (1.0 + bwAdj * 0.8), 0.0, 1.0)), uBW);
-  c = clamp(c, 0.0, 1.0);
+  c = fitGamut(c);
 
   // --- gradazione colore: ombre / medi / alteluci / globale, fusione, bilanciamento ---
   float lg = luma(c), bal = uGrade[12] * 0.2, tw = 0.05 + uGrade[13] * 0.3;
@@ -484,8 +538,13 @@ void main(){
   c = c * (1.0 - uFade * 0.15) + uFade * 0.15;
 
   // --- bagliore, halation, colore sovrapposto delle maschere ---
-  c = 1.0 - (1.0 - c) * (1.0 - glowSrc * uGlow * 1.2);
-  c += vec3(1.0, 0.3, 0.12) * halSrc * uHal * 1.6;
+  if (uGlow > 0.0 || uHal > 0.0) {
+    vec3 cl0 = toLin(clamp(c, 0.0, 1.0));
+    cl0 += glowSrc * uGlow * 0.6;                                     // la luce diffusa si somma in luce lineare
+    float dark = 1.0 - smoothstep(0.55, 0.9, luma(c));                // l'alone si vede sulle zone più scure attorno alle luci
+    cl0 += vec3(0.9, 0.22, 0.06) * halSrc * uHal * 0.35 * dark;
+    c = toSrgb(softShoulder(cl0));
+  }
   if (ovlW > 0.0) c = mix(c, c * 0.6 + ovl / ovlW * 0.6 * luma(c) * 1.4, clamp(ovlW, 0.0, 1.0));
 
   // --- vignettatura (quantità, punto medio, rotondità, sfumatura, alteluci) ---
@@ -495,9 +554,9 @@ void main(){
     float n = uVigP.z < 0.0 ? 2.0 - uVigP.z * 4.0 : 2.0;
     float r = pow(pow(abs(q.x), n) + pow(abs(q.y), n), 1.0 / n) * 0.7071;
     float vg = smoothstep(uVigP.y, min(uVigP.y + 0.15 + uVigP.w * 0.6, 1.3), r);
-    float f = uVigP.x < 0.0 ? 1.0 - uVigP.x * vg * 0.8 : 1.0 - uVigP.x * vg * 0.9;
+    float f = exp2(-uVigP.x * vg * 1.7);                              // caduta in stop, come un obiettivo reale
     if (uVigP.x > 0.0) f = mix(f, 1.0, uVigHi * smoothstep(0.55, 1.0, luma(c)));
-    c *= f;
+    c = toSrgb(softShoulder(toLin(clamp(c, 0.0, 1.0)) * f));
   }
 
   // --- grana (quantità, dimensione, ruvidità) ---

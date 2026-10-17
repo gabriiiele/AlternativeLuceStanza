@@ -198,7 +198,7 @@ function exportSize(w, h, o) {
   else if (o.sizeMode === 'w') k = v / w;
   else if (o.sizeMode === 'h') k = v / h;
   else if (o.sizeMode === 'pct') k = v / 100;
-  k = Math.min(k, 16384 / Math.max(w, h));   // limite dei canvas del browser
+  k = Math.min(k, CANVAS_MAX_SIDE / Math.max(w, h), Math.sqrt(CANVAS_MAX_AREA / (w * h)));   // limite dei canvas del browser
   return [Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))];
 }
 

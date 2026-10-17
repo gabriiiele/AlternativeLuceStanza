@@ -5,13 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#1a1a1a">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Luce Stanza">
+<link rel="apple-touch-icon" href="icon-180.png">
 <title>Luce Stanza</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg">
-<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body data-theme="dark">
-<input id="file" type="file" accept="image/*,.dng,.cr2,.cr3,.crw,.nef,.nrw,.arw,.srf,.sr2,.raf,.orf,.rw2,.pef,.srw,.3fr,.iiq,.x3f,.erf,.kdc,.mrw,.dcr,.mos,.rwl" multiple hidden>
+<input id="file" type="file" accept="image/*,.heic,.heif,.dng,.cr2,.cr3,.crw,.nef,.nrw,.arw,.srf,.sr2,.raf,.orf,.rw2,.pef,.srw,.3fr,.iiq,.x3f,.erf,.kdc,.mrw,.dcr,.mos,.rwl" multiple hidden>
 <input id="fileLut" type="file" accept=".cube" hidden>
 <input id="filePreset" type="file" accept=".xmp,.lrtemplate,.json" multiple hidden>
 <input id="fileWm" type="file" accept="image/*" hidden>
@@ -51,19 +55,20 @@
 </div>
 <div id="toast" hidden></div>
 
-<script src="shaders.js?v=9"></script>
-<script src="engine.js?v=9"></script>
-<script src="profiles.js?v=9"></script>
-<script src="presets.js?v=9"></script>
-<script src="state.js?v=9"></script>
-<script src="db.js?v=9"></script>
-<script src="tools.js?v=9"></script>
-<script src="export.js?v=9"></script>
-<script src="ai.js?v=9"></script>
-<script src="backup.js?v=9"></script>
-<script src="merge.js?v=9"></script>
-<script src="camera.js?v=9"></script>
-<script src="app.js?v=9"></script>
-<script src="library.js?v=9"></script>
+<script src="compat.js?v=10"></script>
+<script src="shaders.js?v=10"></script>
+<script src="engine.js?v=10"></script>
+<script src="profiles.js?v=10"></script>
+<script src="presets.js?v=10"></script>
+<script src="state.js?v=10"></script>
+<script src="db.js?v=10"></script>
+<script src="tools.js?v=10"></script>
+<script src="export.js?v=10"></script>
+<script src="ai.js?v=10"></script>
+<script src="backup.js?v=10"></script>
+<script src="merge.js?v=10"></script>
+<script src="camera.js?v=10"></script>
+<script src="app.js?v=10"></script>
+<script src="library.js?v=10"></script>
 </body>
 </html>

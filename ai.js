@@ -23,7 +23,7 @@ const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
 /* ---------- Super Resolution ---------- */
 
 const SR_MODELS = { fast: 'vendor/sr/slim-x2/model.json', quality: 'vendor/sr/medium-x2/model.json', x4: 'vendor/sr/medium-x4/model.json' };
-const SR_LIMIT = 16384;   // lato massimo di un canvas nel browser
+const SR_LIMIT = CANVAS_MAX_SIDE;   // lato massimo di un canvas nel browser (4096 su iPhone)
 const srCache = {};
 
 /* Passaggi per arrivare al lato lungo voluto: ingrandimenti AI ×2 / ×4 in sequenza,
@@ -116,14 +116,16 @@ async function depthMap(src, onProgress = () => {}) {
     T.env.backends.onnx.wasm.wasmPaths = test.wasmPaths;
   }
   if (!depthPipe) {
-    const device = !test && navigator.gpu ? 'webgpu' : 'wasm';
     const files = {};
-    depthPipe = await T.pipeline('depth-estimation', test ? test.model : DEPTH_MODEL, {
+    const load = device => T.pipeline('depth-estimation', test ? test.model : DEPTH_MODEL, {
       device, dtype: device === 'webgpu' ? 'fp16' : 'q8',
       progress_callback: p => {
         if (p.status === 'progress' && p.total) { files[p.file] = p.loaded / p.total; const v = Object.values(files); onProgress(0.9 * v.reduce((a, b) => a + b, 0) / v.length, 'download'); }
       },
     });
+    // WebGPU è più veloce ma non tutti i telefoni (o tutti gli iPhone) lo supportano: in caso di errore si usa WebAssembly
+    if (!test && navigator.gpu) { try { depthPipe = await load('webgpu'); } catch (e) { console.warn('WebGPU non disponibile', e); } }
+    if (!depthPipe) depthPipe = await load('wasm');
   }
   onProgress(0.92, 'calcolo');
   const k = Math.min(1, 1024 / Math.max(src.width, src.height));
@@ -143,8 +145,36 @@ async function depthMap(src, onProgress = () => {}) {
   // riporta alle proporzioni della foto
   const fc = Object.assign(document.createElement('canvas'), { width: c.width, height: c.height });
   const fctx = fc.getContext('2d'); fctx.imageSmoothingQuality = 'high'; fctx.drawImage(dc, 0, 0, fc.width, fc.height);
+  refineDepth(fc, c);
   onProgress(1, 'fatto');
   return fc;
+}
+
+/* Filtro guidato (He et al.): i bordi della mappa di profondità vengono allineati ai bordi reali della foto,
+   così la sfocatura segue capelli e contorni invece di lasciare un alone attorno al soggetto */
+function refineDepth(depthCanvas, guideCanvas) {
+  const w = depthCanvas.width, h = depthCanvas.height, n = w * h;
+  const dctx = depthCanvas.getContext('2d', { willReadFrequently: true }), dd = dctx.getImageData(0, 0, w, h);
+  const gd = guideCanvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
+  const I = new Float32Array(n), P = new Float32Array(n);
+  for (let i = 0; i < n; i++) { I[i] = (0.2126 * gd[i * 4] + 0.7152 * gd[i * 4 + 1] + 0.0722 * gd[i * 4 + 2]) / 255; P[i] = dd.data[i * 4] / 255; }
+  const r = Math.max(2, Math.round(Math.max(w, h) / 120)), eps = 2e-3;
+  const box = a => boxBlur(a, w, h, r, 1);
+  const mI = box(I.slice()), mP = box(P.slice());
+  const II = new Float32Array(n), IP = new Float32Array(n);
+  for (let i = 0; i < n; i++) { II[i] = I[i] * I[i]; IP[i] = I[i] * P[i]; }
+  box(II); box(IP);
+  const A = new Float32Array(n), B = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const varI = II[i] - mI[i] * mI[i], cov = IP[i] - mI[i] * mP[i];
+    A[i] = cov / (varI + eps); B[i] = mP[i] - A[i] * mI[i];
+  }
+  box(A); box(B);
+  for (let i = 0; i < n; i++) {
+    const q = Math.round(Math.max(0, Math.min(1, A[i] * I[i] + B[i])) * 255);
+    dd.data[i * 4] = dd.data[i * 4 + 1] = dd.data[i * 4 + 2] = q;
+  }
+  dctx.putImageData(dd, 0, 0);
 }
 
 /* ---------- Look da descrizione ---------- */
@@ -201,6 +231,8 @@ adatta l'esposizione e il bilanciamento a ciò che vedi (correggi foto sottoespo
 Scale: 0 = neutro su tutti gli slider; ±1 equivale a ±100 in Lightroom, quindi valori tipici stanno tra -0.5 e 0.5.
 Per la gradazione colore la saturazione 0.15-0.35 è già evidente. Usa la curva per contrasto o neri sollevati (punto iniziale y>0).
 Le maschere servono solo se migliorano davvero la foto (es. cielo con lineare angolo 90 posizionata sull'orizzonte, soggetto con radiale): massimo 3.
+PRIORITÀ ASSOLUTA: il risultato deve sembrare una fotografia professionale e naturale, mai "filtrata" o finta.
+Preferisci molte regolazioni piccole a poche forti; evita pelle arancione o grigia, cieli al neon, aloni, HDR esasperato.
 Restituisci sempre tutte le 8 voci hsl. Rispondi solo con il JSON richiesto.`;
 
 function jpegBase64(src, max = 768) {
@@ -320,6 +352,7 @@ function lookToParams(look, current) {
   copyGroups(current, p, LOCAL_GROUPS);
   p.lutAmt = current.lutAmt; p.profile = current.profile; p.profileAmt = current.profileAmt;
   for (const k of ['exp']) p[k] = clamp(look[k], -3, 3);
+  look = limitRealism({ ...look });
   for (const k of ['contrast', 'hi', 'sh', 'wh', 'bl', 'temp', 'tint', 'vib', 'sat', 'texture', 'clarity', 'dehaze', 'vig', 'gsL', 'gmL', 'ghL', 'gBal',
     'calRH', 'calRS', 'calGH', 'calGS', 'calBH', 'calBS']) p[k] = clamp(look[k], -1, 1);
   for (const k of ['grain', 'fade', 'glow', 'halation', 'mono', 'gsS', 'gmS', 'ghS']) p[k] = clamp(look[k], 0, 1);

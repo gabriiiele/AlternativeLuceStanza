@@ -1,5 +1,5 @@
-const CACHE = 'luce-stanza-v9';
-const FILES = ['./', 'index.html', 'style.css', 'manifest.json', 'icon.svg', 'shaders.js', 'engine.js', 'profiles.js', 'presets.js',
+const CACHE = 'luce-stanza-v10';
+const FILES = ['./', 'index.html', 'style.css', 'manifest.json', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'compat.js', 'shaders.js', 'engine.js', 'profiles.js', 'presets.js',
   'state.js', 'db.js', 'tools.js', 'export.js', 'ai.js', 'backup.js', 'merge.js', 'camera.js', 'app.js', 'library.js',
   'vendor/tf.min.js', 'vendor/anthropic-sdk.js',
   'vendor/libraw/index.js', 'vendor/libraw/worker.js', 'vendor/libraw/libraw.wasm',
