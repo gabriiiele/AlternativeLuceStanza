@@ -310,16 +310,19 @@ function renderFinal(p, w, h) {
 }
 
 /* Inserisce la foto (fw × fh) in un formato W × H: ritaglio attorno al soggetto, bordi colorati o sfondo sfocato */
-function composeFrame(p, fw, fh, W, H, fit, padColor) {
+function composeFrame(p, fw, fh, W, H, fit, padColor, id) {
   const out = canvasOf(W, H), ctx = out.getContext('2d');
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   const lim = (w, h) => Math.min(1, CANVAS_MAX_SIDE / Math.max(w, h), Math.sqrt(CANVAS_MAX_AREA / (w * h)));
   if (fit === 'crop') {
-    const s = Math.max(W / fw, H / fh), k = lim(fw * s, fh * s);
+    // riquadro scelto dall'utente per questo formato (o centrato sul viso)
+    const r = id && typeof frameRect === 'function' ? frameRect(p, id) : null;
+    let x0, y0, cw, ch;
+    if (r && r.fit === 'crop') ({ x0, y0, cw, ch } = r);
+    else { const s0 = Math.max(W / fw, H / fh); cw = W / (fw * s0); ch = H / (fh * s0); x0 = (1 - cw) / 2; y0 = (1 - ch) / 2; }
+    const s = W / (fw * cw), k = lim(fw * s, fh * s);
     const rw = Math.max(1, Math.round(fw * s * k)), rh = Math.max(1, Math.round(fh * s * k)), img = renderFinal(p, rw, rh);
-    const cw = W / (fw * s), ch = H / (fh * s), f = typeof exportFocus === 'function' ? exportFocus(p) : [0.5, 0.5];
-    const cx = Math.max(cw / 2, Math.min(1 - cw / 2, f[0])), cy = Math.max(ch / 2, Math.min(1 - ch / 2, f[1]));
-    ctx.drawImage(img, (cx - cw / 2) * rw, (cy - ch / 2) * rh, cw * rw, ch * rh, 0, 0, W, H);
+    ctx.drawImage(img, x0 * rw, y0 * rh, cw * rw, ch * rh, 0, 0, W, H);
     return out;
   }
   const s = Math.min(W / fw, H / fh), iw = Math.round(fw * s), ih = Math.round(fh * s), img = renderFinal(p, iw, ih);
@@ -343,7 +346,8 @@ async function buildExport(p, opts = exportOpts) {
   let canvas, w, h;
   if (t) {
     [w, h] = socialSize(t, fw, fh);
-    canvas = t.long ? renderFinal(p, w, h) : composeFrame(p, fw, fh, w, h, opts.fit, opts.padColor);
+    const fit = p.frames?.[t.id]?.fit || opts.fit;
+    canvas = t.long ? renderFinal(p, w, h) : composeFrame(p, fw, fh, w, h, fit, opts.padColor, t.id);
     // per i social: JPEG di qualità alta, leggera nitidezza per lo schermo (i social ammorbidiscono le foto)
     opts = { ...opts, fmt: 'image/jpeg', quality: t.quality || 0.9, dpi: t.dpi || opts.dpi,
       outSharp: opts.outSharp === 'none' && !t.dpi ? 'low' : opts.outSharp, outSharpType: t.dpi ? 'glossy' : 'screen',

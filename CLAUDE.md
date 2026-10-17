@@ -25,7 +25,9 @@ Uso solo personale: niente reverse engineering o copia di codice/dati Adobe, sol
 - Preset: secondo tocco sul preset attivo lo toglie (torna a `presetBase`). I preset inclusi non azzerano `KEEP_ON_PRESET`
   (geometria, maschere, ritocco, testi, beauty, sfocatura).
 - Pubblica (export.js + app.js): `SOCIAL` formati (Instagram, TikTok, Facebook, Pinterest, X, LinkedIn, YouTube, WhatsApp, web, stampa),
-  `composeFrame` ritaglia attorno al viso (`exportFocus`), bordi o sfondo sfocato; `params.texts` (scritte, `drawTexts`, font OFL in
+  `composeFrame` ritaglia secondo `params.frames[id]` ({x, y, z, fit}, riquadro trascinabile sulla foto col modo `frame`, `frameRect`;
+  senza scelta: centrato sul viso con `exportFocus`), bordi o sfondo sfocato; anteprime esatte per formato (`socialPreview`);
+  modelli di scritta mostrati come anteprime; `params.texts` (scritte, `drawTexts`, font OFL in
   `vendor/fonts`, trascinabili con il modo `text`); `buildBeforeAfter`, `buildCollage`. Sfondo: maschera `Sfondo (AI)` (persona invertita)
   e sfocatura con profondità o con la sagoma della persona (`personDepth`).
 - Beauty (`bSmooth`, `bEven`, `bBright`, `bShine`): pelle riconosciuta dal colore in YCbCr con soglia di crominanza (niente soglie di

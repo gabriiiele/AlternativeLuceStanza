@@ -158,6 +158,19 @@ button:active:not(:disabled) { transform:scale(.96); }
 .chips button.fmt { display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; padding:8px 12px; }
 .chips button.fmt span { font-size:11px; opacity:.75; font-variant-numeric:tabular-nums; }
 .chip.swatch { box-shadow:inset 0 0 0 1px #8886; }
+.chips button.fmt { flex-direction:row; align-items:center; flex-wrap:wrap; column-gap:8px; }
+.chips button.fmt b { font-weight:600; }
+.chips button.fmt span { flex-basis:100%; padding-left:22px; }
+.fmt .ratio { width:14px; max-height:22px; border:1.5px solid currentColor; border-radius:2px; flex:none; }
+/* anteprime dei formati social e dei modelli di scritta */
+.sstrip, .tgrid { display:flex; gap:10px; overflow-x:auto; padding:4px 0 8px; scrollbar-width:none; }
+.sstrip::-webkit-scrollbar, .tgrid::-webkit-scrollbar { display:none; }
+.sprev, .tcard { flex:none; display:flex; flex-direction:column; align-items:center; gap:6px; background:none; padding:6px; border-radius:12px; border:2px solid transparent; }
+.sprev.on, .tcard:active { border-color:var(--acc); background:var(--panel2); }
+.sprev canvas.pv { height:130px; width:auto; max-width:200px; border-radius:6px; box-shadow:0 1px 6px #0006; background:#333; }
+.sprev span, .tcard span { font-size:11px; color:var(--dim); max-width:150px; text-align:center; }
+.tcard canvas { width:128px; height:96px; border-radius:8px; }
+.chips button.font { font-size:16px; }
 .chip.swatch.on { border-color:var(--acc); }
 textarea.txt { width:100%; background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:10px; font:16px/1.3 inherit; font-family:inherit; resize:vertical; margin:8px 0 4px; }
 .prompt { min-height:84px; resize:vertical; margin-top:6px; }

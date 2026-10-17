@@ -412,6 +412,12 @@ function toolDown(e) {
     const t = params.texts[i];
     tool.drag = { x, y, tx: t.x, ty: t.y, before: clone(params) }; return true;
   }
+  if (tool.mode === 'frame') {                      // riquadro del formato social: trascinandolo si sceglie il taglio
+    const fr = frameRect(params, socialCur), r = T.rect(); if (!fr) return false;
+    const u = (x - r.left) / r.width, v = (y - r.top) / r.height;
+    if (u < fr.x0 - 0.05 || u > fr.x1 + 0.05 || v < fr.y0 - 0.05 || v > fr.y1 + 0.05) return false;
+    tool.drag = { x, y, cx: (fr.x0 + fr.x1) / 2, cy: (fr.y0 + fr.y1) / 2, cw: fr.cw, ch: fr.ch, before: clone(params) }; return true;
+  }
   if (tool.mode === 'blur') { tool.drag = { before: clone(params) }; toolMove(e); return true; }
   if (tool.mode === 'guide') { const ic = T.toIc(x, y); guideDraft = [ic[0], ic[1], ic[0], ic[1]]; tool.drag = { before: clone(params) }; return true; }
   return false;
@@ -445,6 +451,12 @@ function toolMove(e) {
     redraw();
   }
   else if (tool.mode === 'guide') { const ic = T.toIc(x, y); guideDraft[2] = ic[0]; guideDraft[3] = ic[1]; drawOverlay(); }
+  else if (tool.mode === 'frame') {
+    const r = T.rect(), f = (params.frames[socialCur] ||= {});
+    f.x = Math.max(d.cw / 2, Math.min(1 - d.cw / 2, d.cx + (x - d.x) / r.width));
+    f.y = Math.max(d.ch / 2, Math.min(1 - d.ch / 2, d.cy + (y - d.y) / r.height));
+    drawOverlay(); refreshSocialPreviews(socialCur);
+  }
   else if (tool.mode === 'text') {
     const r = T.rect(), t = params.texts[textIdx]; if (!t) return;
     t.x = Math.max(0, Math.min(1, d.tx + (x - d.x) / r.width)); t.y = Math.max(0, Math.min(1, d.ty + (y - d.y) / r.height));
@@ -455,7 +467,7 @@ function toolMove(e) {
 function toolUp() {
   const d = tool.drag; if (!d) return;
   tool.drag = null;
-  const labels = { crop: 'Ritaglio', brush: 'Pennello', spot: 'Ritocco', maskHandle: 'Maschera', blur: 'Sfocatura', guide: 'Guida Upright', text: 'Sposta scritta' };
+  const labels = { crop: 'Ritaglio', brush: 'Pennello', spot: 'Ritocco', maskHandle: 'Maschera', blur: 'Sfocatura', guide: 'Guida Upright', text: 'Sposta scritta', frame: 'Taglio formato' };
   if (tool.mode === 'brush') {
     const m = params.masks[maskIdx];
     if (m) { m.strokes.push(d.stroke); const b = brushCache[m.id]; if (b) { b.live = false; b.sig = m.strokes.length + ':' + d.stroke.pts.length; } }
@@ -571,6 +583,31 @@ function drawOverlay() {
     textBoxes = drawTexts(ctx, r.width, r.height, params.texts, L, Tp);
     const b = curTab === 'Testo' && textBoxes[textIdx];
     if (b) { ctx.save(); ctx.strokeStyle = '#4da3ff'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]); ctx.strokeRect(b.x, b.y, b.w, b.h); ctx.restore(); }
+  }
+
+  // formato social: zona tagliata scurita (o bordi/sfondo aggiunti), riquadro con terzi e nome del formato
+  const fr = curTab === 'Social' && socialCur && frameRect(params, socialCur);
+  if (fr) {
+    const X = u => L + u * r.width, Y = v => Tp + v * r.height;
+    const fx = X(fr.x0), fy = Y(fr.y0), fw = (fr.x1 - fr.x0) * r.width, fh = (fr.y1 - fr.y0) * r.height;
+    ctx.save();
+    if (fr.fit === 'crop') {
+      ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.beginPath(); ctx.rect(L, Tp, r.width, r.height); ctx.rect(fx, fy, fw, fh); ctx.fill('evenodd');
+    } else {
+      ctx.fillStyle = fr.fit === 'pad' ? exportOpts.padColor : 'rgba(120,120,120,0.55)';
+      ctx.beginPath(); ctx.rect(fx, fy, fw, fh); ctx.rect(L, Tp, r.width, r.height); ctx.fill('evenodd');
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1;
+    for (const k of [1, 2]) {
+      ctx.beginPath(); ctx.moveTo(fx + fw * k / 3, fy); ctx.lineTo(fx + fw * k / 3, fy + fh); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(fx, fy + fh * k / 3); ctx.lineTo(fx + fw, fy + fh * k / 3); ctx.stroke();
+    }
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(fx, fy, fw, fh);
+    const label = `${fr.t.group} · ${fr.t.name}`;
+    ctx.font = '600 12px system-ui, sans-serif'; const lw = ctx.measureText(label).width + 14;
+    ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(fx + 6, fy + 6, lw, 22);
+    ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'; ctx.fillText(label, fx + 13, fy + 17);
+    ctx.restore();
   }
 
   if (tool.mode === 'guide') {

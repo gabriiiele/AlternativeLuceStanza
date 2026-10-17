@@ -54,7 +54,7 @@ const defaults = () => ({
   // geometria
   geo: { angle: 0, trot: 0, rot: 0, fx: 0, fy: 0, vert: 0, horiz: 0, distort: 0, aspAdj: 0, scale: 1, ox: 0, oy: 0,
     constrain: 1, ratio: 'orig', custom: [4, 5], crop: [0, 0, 1, 1], guides: [], grid: 'thirds' },
-  masks: [], spots: [], texts: [], lutAmt: 1,
+  masks: [], spots: [], texts: [], frames: {}, lutAmt: 1,
 });
 
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -83,8 +83,9 @@ const GROUPS = {
   'Beauty': ['bSmooth', 'bEven', 'bBright', 'bShine', 'bMakeup', 'bEyes', 'bTeeth'],
   'LUT': ['lutAmt'],
   'Testi': ['texts'],
+  'Formati social': ['frames'],
 };
-const LOCAL_GROUPS = ['Geometria e ritaglio', 'Maschere', 'Ritocco', 'Testi'];
+const LOCAL_GROUPS = ['Geometria e ritaglio', 'Maschere', 'Ritocco', 'Testi', 'Formati social'];
 // gruppi che un preset incluso non azzera (se il preset non li imposta): ritocchi della persona e scelte della foto
 const KEEP_ON_PRESET = [...LOCAL_GROUPS, 'Beauty', 'Sfocatura obiettivo'];
 
