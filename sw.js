@@ -1,6 +1,6 @@
-const CACHE = 'luce-stanza-v8';
+const CACHE = 'luce-stanza-v9';
 const FILES = ['./', 'index.html', 'style.css', 'manifest.json', 'icon.svg', 'shaders.js', 'engine.js', 'profiles.js', 'presets.js',
-  'state.js', 'db.js', 'tools.js', 'export.js', 'ai.js', 'backup.js', 'app.js', 'library.js',
+  'state.js', 'db.js', 'tools.js', 'export.js', 'ai.js', 'backup.js', 'merge.js', 'camera.js', 'app.js', 'library.js',
   'vendor/tf.min.js', 'vendor/anthropic-sdk.js',
   'vendor/libraw/index.js', 'vendor/libraw/worker.js', 'vendor/libraw/libraw.wasm',
   'vendor/sr/slim-x2/model.json', 'vendor/sr/slim-x2/group1-shard1of1.bin',

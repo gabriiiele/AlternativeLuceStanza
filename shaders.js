@@ -239,7 +239,7 @@ vec3 applyLut(vec3 c){
 vec3 curveEntry(float i){
   float x = (i + 0.5) / 1024.0;
   // sui telefoni le texture si leggono in bassa precisione (lowp): si copia in highp e si arrotonda al byte prima di combinarle
-  highp vec3 hi = texture2D(uCurve, vec2(x, 0.25)).rgb, lo = texture2D(uCurve, vec2(x, 0.75)).rgb;
+  highp vec3 hi = texture2D(uCurve, vec2(x, 0.05)).rgb, lo = texture2D(uCurve, vec2(x, 0.15)).rgb;   // righe 0 e 1 di 10
   hi = floor(hi * 255.0 + 0.5); lo = floor(lo * 255.0 + 0.5);
   return clamp((hi * 256.0 + lo) / 65535.0, 0.0, 1.0);
 }
@@ -469,6 +469,16 @@ void main(){
 
   // --- curve (parametrica + punti, per canale) ---
   c = vec3(curveAt(c.r, 0), curveAt(c.g, 1), curveAt(c.b, 2));
+
+  // --- curve locali delle maschere (righe 2-9 della texture delle curve) ---
+  for (int i = 0; i < 8; i++) {
+    float w = mw[i] * uMk[i * 5 + 4].z;
+    if (uMk[i * 5 + 4].w < 0.5 || w <= 0.0) continue;
+    float y = (2.5 + float(i)) / 10.0;
+    vec3 q = clamp(c, 0.0, 1.0) * (1023.0 / 1024.0) + 0.5 / 1024.0;
+    vec3 cm = vec3(texture2D(uCurve, vec2(q.r, y)).r, texture2D(uCurve, vec2(q.g, y)).r, texture2D(uCurve, vec2(q.b, y)).r);
+    c = mix(c, cm, clamp(w, 0.0, 1.0));
+  }
 
   if (uLutAmt > 0.0) c = mix(c, applyLut(c), uLutAmt);
   c = c * (1.0 - uFade * 0.15) + uFade * 0.15;

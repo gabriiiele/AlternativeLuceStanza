@@ -164,3 +164,21 @@ button.primary, button.on { background:var(--acc); color:var(--acc-text); }
 .checks.one { grid-template-columns:1fr; max-height:55vh; overflow:auto; }
 .checks label { display:flex; gap:6px; align-items:center; }
 #stage.comparing::after { content:"Originale"; position:absolute; top:8px; left:50%; transform:translateX(-50%); background:#000b; color:#fff; padding:4px 12px; border-radius:12px; font-size:12px; pointer-events:none; }
+
+/* fotocamera */
+.camera { background:#000; z-index:5; }
+.cam-stage { flex:1; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+.cam-stage video { width:100%; height:100%; object-fit:contain; background:#000; }
+.cam-grid { position:absolute; inset:0; pointer-events:none;
+  background: linear-gradient(to right, transparent calc(33.33% - .5px), #fff6 calc(33.33% - .5px), #fff6 calc(33.33% + .5px), transparent calc(33.33% + .5px), transparent calc(66.66% - .5px), #fff6 calc(66.66% - .5px), #fff6 calc(66.66% + .5px), transparent calc(66.66% + .5px)),
+              linear-gradient(to bottom, transparent calc(33.33% - .5px), #fff6 calc(33.33% - .5px), #fff6 calc(33.33% + .5px), transparent calc(33.33% + .5px), transparent calc(66.66% - .5px), #fff6 calc(66.66% - .5px), #fff6 calc(66.66% + .5px), transparent calc(66.66% + .5px)); }
+.cam-grid[hidden], .cam-count[hidden], .cam-ctl[hidden] { display:none; }
+.cam-count { position:absolute; font-size:96px; color:#fff; text-shadow:0 2px 12px #000; }
+.cam-flashfx { position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; }
+.cam-flashfx.on { animation:camfx .35s ease-out; }
+@keyframes camfx { from { opacity:.85; } to { opacity:0; } }
+.cam-ctl { background:#111e; color:#eee; padding:8px 14px; max-height:40vh; overflow-y:auto; }
+.cam-bar { display:flex; align-items:center; justify-content:space-around; padding:14px 8px calc(14px + env(safe-area-inset-bottom)); background:#000; }
+.cam-bar .ibtn { color:#fff; font-size:22px; }
+.cam-shoot { width:70px; height:70px; border-radius:50%; background:#fff; border:5px solid #888; padding:0; }
+.cam-shoot:active { transform:scale(.93); }

@@ -5,6 +5,7 @@
    2. maschere -> due texture RGBA (8 maschere, una per canale)
    3. pipeline principale -> canvas */
 
+const CURVE_ROWS = 10;
 const MAX_MASKS = 8, MAX_COMPS = 6;
 const HSL_CENTERS = [0, 30, 60, 120, 180, 230, 275, 320];
 
@@ -338,7 +339,8 @@ class Engine {
 
   /* Curve combinate a 16 bit (1024 voci): riga 0 byte alti, riga 1 byte bassi */
   setCurves(p) {
-    const N = 1024, key = JSON.stringify([p.curve, p.cr, p.cg, p.cb, p.pcSh, p.pcDk, p.pcLt, p.pcHi, p.pcS1, p.pcS2, p.pcS3]);
+    const N = 1024, mcurves = p.masks.slice(0, MAX_MASKS).map(m => m.adj.curve || null);
+    const key = JSON.stringify([p.curve, p.cr, p.cg, p.cb, p.pcSh, p.pcDk, p.pcLt, p.pcHi, p.pcS1, p.pcS2, p.pcS3, mcurves]);
     if (key === this.curveKey) return;
     this.curveKey = key;
     const P = parametricLUT(p, N), M = curveLUT(p.curve, N), R = curveLUT(p.cr, N), G = curveLUT(p.cg, N), B = curveLUT(p.cb, N);
@@ -346,7 +348,8 @@ class Engine {
       const f = Math.min(1, Math.max(0, y)) * (N - 1), i = Math.floor(f), t = f - i;
       return lut[i] + ((lut[Math.min(i + 1, N - 1)] ?? lut[i]) - lut[i]) * t;
     };
-    const data = new Uint8Array(N * 2 * 4);
+    // righe 0-1: curva globale a 16 bit; righe 2-9: curve locali delle 8 maschere (8 bit)
+    const data = new Uint8Array(N * CURVE_ROWS * 4);
     for (let i = 0; i < N; i++) {
       const m = at(M, P[i]);
       [at(R, m), at(G, m), at(B, m)].forEach((x, k) => {
@@ -355,10 +358,15 @@ class Engine {
       });
       data[i * 4 + 3] = data[(N + i) * 4 + 3] = 255;
     }
+    mcurves.forEach((c, m) => {
+      if (isIdentCurve(c)) return;
+      const L = curveLUT(c, N), row = (2 + m) * N;
+      for (let i = 0; i < N; i++) { const v = Math.round(L[i] * 255); data.set([v, v, v, 255], (row + i) * 4); }
+    });
     const gl = this.gl;
     gl.bindTexture(gl.TEXTURE_2D, this.curveTex);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, N, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, N, CURVE_ROWS, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
   }
 
   /* Livelli sfocati della sorgente (texture, chiarezza, foschia, bagliore): ricalcolati solo quando cambia l'immagine o i ritocchi */
@@ -444,7 +452,7 @@ class Engine {
     p.masks.slice(0, MAX_MASKS).forEach((m, i) => {
       const a = m.adj;
       MK.set([a.exp, a.contrast, a.hi, a.sh, a.wh, a.bl, a.temp, a.tint, a.hue, a.sat, a.texture, a.clarity,
-        a.dehaze, a.sharp, a.noise, a.moire, a.ovH, a.ovS, m.on ? m.amount : 0, 0], i * 20);
+        a.dehaze, a.sharp, a.noise, a.moire, a.ovH, a.ovS, m.on ? m.amount : 0, isIdentCurve(a.curve) ? 0 : 1], i * 20);
     });
     gl.uniform4fv(u.uMk, MK);
     f1('uShowMask', opts.showMask ?? -1);

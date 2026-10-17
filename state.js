@@ -5,7 +5,8 @@
 const IDENT = () => [[0, 0], [1, 1]];
 
 const defMaskAdj = () => ({ exp: 0, contrast: 0, hi: 0, sh: 0, wh: 0, bl: 0, temp: 0, tint: 0, hue: 0, sat: 0,
-  texture: 0, clarity: 0, dehaze: 0, sharp: 0, noise: 0, moire: 0, ovH: 30, ovS: 0 });
+  texture: 0, clarity: 0, dehaze: 0, sharp: 0, noise: 0, moire: 0, ovH: 30, ovS: 0, curve: [[0, 0], [1, 1]] });
+const isIdentCurve = c => !c || (c.length === 2 && c[0][0] === 0 && c[0][1] === 0 && c[1][0] === 1 && c[1][1] === 1);
 
 let maskSeq = 1;
 const newComp = (type, op = 'add') => ({

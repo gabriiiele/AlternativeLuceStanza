@@ -95,10 +95,19 @@ Le due strade disponibili sono il selettore multiplo (pulsante +) e "Condividi" 
 Una vera navigazione della Galleria richiederebbe di impacchettare l'app come APK nativo (fattibile in seguito con GitHub Actions).
 
 ## Fase 3 – Strumenti avanzati
-- Unione HDR (esposizioni multiple) e panorama
-- Fotocamera integrata: esposizione, ISO, tempi, messa a fuoco, bilanciamento, griglia, timer, flash, secondo ciò che il telefono espone al browser
-- Curva locale nelle maschere, più campioni per l'intervallo colore
-- Eventuale versione APK nativa con accesso diretto alla Galleria
+| Funzione | Stato |
+|---|---|
+| Backup e ripristino della libreria (.zip, diviso in parti oltre 3,5 GB) | ✅ |
+| Cestino con recupero per 30 giorni | ✅ |
+| Confronto prima/dopo tenendo premuto sulla foto | ✅ |
+| Unione HDR (2-7 foto): allineamento automatico MTB + fusione delle esposizioni multi-scala | ✅ (testato su scene sintetiche) |
+| Unione panorama: proiezione cilindrica, punti caratteristici, RANSAC, compensazione esposizione, giunzioni sfumate, ritaglio automatico | ✅ (testato su scene sintetiche; panorami orizzontali) |
+| Fotocamera integrata: esposizione, tempo, ISO, bilanciamento, messa a fuoco, zoom, torcia (se il telefono li espone), timer, flash, griglia, forcella HDR automatica | ✅ (testata con fotocamera simulata) |
+| Curva tonale nelle maschere | ✅ |
+| Rimozione dei "fantasmi" nell'HDR (oggetti in movimento) | ⬜ |
+| Panorama sferico / prospettico, più righe | ⬜ |
+| Più campioni per l'intervallo colore | ⬜ |
+| Versione APK nativa con accesso diretto alla Galleria | ⬜ |
 
 ## Esclusi in modo definitivo
 - Le funzioni AI non richieste (maschere soggetto/cielo/persone, rimozione generativa, denoise AI).

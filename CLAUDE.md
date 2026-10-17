@@ -5,9 +5,9 @@ L'utente non è un programmatore: spiegazioni in italiano, brevi e pratiche. Int
 Uso solo personale: niente reverse engineering o copia di codice/dati Adobe, solo implementazioni originali.
 
 ## Stato
-- Fase 1 (motore di modifica completo senza AI) e Fase 2 (libreria, RAW, AI richieste) completate.
-- Prossimo: Fase 3 (unione HDR/panorama, fotocamera integrata, curva locale nelle maschere, eventuale APK nativo
-  per sfogliare direttamente la Galleria). Elenco completo e stato: `docs/RICERCA_FUNZIONI.md`.
+- Fasi 1, 2 e 3 completate: motore, libreria, RAW, AI richieste, backup .zip, cestino (30 giorni), confronto tenendo
+  premuto sulla foto (il pulsante ◐ è stato tolto su richiesta), unione HDR/panorama, fotocamera, curva nelle maschere.
+- Possibili passi successivi: deghosting HDR, panorami sferici, APK nativo per la Galleria. Stato completo: `docs/RICERCA_FUNZIONI.md`.
 - AI: l'utente vuole SOLO Super Resolution, look da descrizione ("preset adattivi") e mappa di profondità. Niente altre funzioni AI.
 - Pubblicazione: GitHub Pages dal branch `claude/lightroom-mobile-reverse-engineer-717gjz` → https://gabriiiele.github.io/AlternativeLuceStanza/
 
@@ -18,6 +18,11 @@ Uso solo personale: niente reverse engineering o copia di codice/dati Adobe, sol
 - `presets.js` 173 preset (formato compatto: `hsl`/`bw` sparsi), `profiles.js` profili
 - `tools.js` strumenti sull'immagine, Hough/Upright, pennello (tratti vettoriali in `params.masks[].strokes`)
 - `export.js` formati, TIFF, EXIF, filigrana · `ai.js` SR (TF.js, modelli in `vendor/sr`), profondità (transformers.js da CDN), look (Claude SDK o regole offline)
+- `backup.js` zip "store" scritto/letto a mano (manifest.json + files/ decoded/ thumbs/ depth/), ripristino senza doppioni (per id)
+- `merge.js` HDR (MTB + Mertens multi-scala a ≤1536 px + dettaglio a piena risoluzione) e panorama (cilindrico, Harris + RANSAC)
+- `camera.js` getUserMedia + ImageCapture; controlli solo se presenti in `getCapabilities()`; forcella → `mergeHDR`
+- Cestino: `photo.trashed` = timestamp; `livePhotos()` esclude il cestino; vista libreria `trash`
+- Curve delle maschere: righe 2-9 della texture delle curve (`CURVE_ROWS = 10`), flag in `uMk[i*5+4].w`
 - `db.js` IndexedDB · `library.js` libreria, import, impostazioni · `app.js` editor (pannelli in `PANELS`, barra in `TOOLS`)
 - Risoluzione: il motore lavora a piena risoluzione fino a `engine.maxSize` (MAX_TEXTURE_SIZE, max 16384). Anteprima con mipmap
   (WebGL2); esportazione a tasselli con `engine.renderToCanvas`. Shader principale usa `SH_VERT_MAIN` con `uTile`.

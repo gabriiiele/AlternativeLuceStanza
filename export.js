@@ -47,7 +47,7 @@ function tiffView(seg, base) {
 function parseTiff(seg, base) {
   const t = tiffView(seg, base), tags = {};
   const NAMES = { 0x010F: 'make', 0x0110: 'model', 0x0112: 'orientation', 0x0132: 'date', 0x8298: 'copyright',
-    0x829A: 'exposure', 0x829D: 'fnumber', 0x8827: 'iso', 0x9003: 'dateOriginal', 0x920A: 'focal', 0xA434: 'lens' };
+    0x829A: 'exposure', 0x829D: 'fnumber', 0x8827: 'iso', 0x9003: 'dateOriginal', 0x920A: 'focal', 0xA405: 'focal35', 0xA434: 'lens' };
   const readIfd = (off, depth) => {
     const n = t.u16(off);
     for (let i = 0; i < n; i++) {

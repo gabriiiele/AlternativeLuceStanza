@@ -388,11 +388,12 @@ PANELS['Curva'] = p => {
       btn('Contrasto forte', () => { commit('Curva'); params[curveCh] = [[0, 0], [0.25, 0.16], [0.75, 0.84], [1, 1]]; renderPanel(); })));
 };
 
-function curveCanvas(readOnly) {
-  const col = { curve: '#4da3ff', cr: '#ff5252', cg: '#4caf50', cb: '#448aff' }[curveCh];
+/* getPts: restituisce l'array di punti da modificare (curva globale o curva di una maschera) */
+function curveCanvas(readOnly, getPts = () => params[curveCh], color) {
+  const col = color || { curve: '#4da3ff', cr: '#ff5252', cg: '#4caf50', cb: '#448aff' }[curveCh];
   const cv = el('canvas', { id: 'curve', width: 260, height: 260 }), ctx = cv.getContext('2d');
   let drag = -1, before = null;
-  const pts = () => params[curveCh];
+  const pts = getPts;
   const draw = () => {
     ctx.clearRect(0, 0, 260, 260);
     ctx.strokeStyle = '#2c2c2c'; ctx.lineWidth = 1;
@@ -774,6 +775,8 @@ PANELS['Maschere'] = p => {
       A('ovH', 'Colore sovrapposto: tinta', 0, 360, 1, { bg: HUE_BG }), A('ovS', 'Colore sovrapposto: forza', 0, 1)),
     group('Effetti (maschera)', false, A('texture', 'Texture', -1, 1), A('clarity', 'Chiarezza', -1, 1), A('dehaze', 'Rimozione foschia', -1, 1),
       A('sharp', 'Nitidezza', -1, 2), A('noise', 'Riduzione disturbo', 0, 1), A('moire', 'Moiré', 0, 1)),
+    group('Curva (maschera)', !isIdentCurve(a.curve), curveCanvas(false, () => (a.curve ||= IDENT()), '#ffd54f'),
+      actions(btn('Azzera curva', () => { commit('Curva maschera'); a.curve = IDENT(); renderPanel(); }))),
     actions(btn('Azzera regolazioni', () => { commit('Maschera'); m.adj = defMaskAdj(); renderPanel(); })));
 };
 

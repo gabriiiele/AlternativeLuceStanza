@@ -81,7 +81,9 @@ async function makeThumb(src, p, eng = libEngine, brushes, size = 400, type = 'i
 
 /* ---------- Importazione ---------- */
 
-async function importFiles(files) {
+/* Restituisce le schede delle foto aggiunte; quiet = senza messaggio finale */
+async function importFiles(files, { quiet = false } = {}) {
+  const added = [];
   const known = new Set(photos.map(p => p.hash));
   const preset = appSettings.importPreset ? presetEntries().find(e => e.cat + '/' + e.name === appSettings.importPreset) : null;
   let n = 0, dup = 0, fail = 0;
@@ -101,12 +103,50 @@ async function importFiles(files) {
       if (raw) await DB.put('decoded', await new Promise(r => d.canvas.toBlob(r, 'image/jpeg', 0.97)), id);
       await DB.put('thumbs', await makeThumb(d.canvas, edits || defaults()), id);
       await DB.put('photos', rec);
-      photos.push(rec); known.add(hash); n++;
+      photos.push(rec); added.push(rec); known.add(hash); n++;
     } catch (e) { console.error(f.name, e); fail++; }
   }
   libStatus('');
-  toast(`${n} importate` + (dup ? ` · ${dup} duplicati saltati` : '') + (fail ? ` · ${fail} non leggibili` : ''));
+  if (!quiet) toast(`${n} importate` + (dup ? ` · ${dup} duplicati saltati` : '') + (fail ? ` · ${fail} non leggibili` : ''));
   renderLibrary();
+  return added;
+}
+
+/* Aggiunge alla libreria un'immagine creata dall'app (unione HDR, panorama, scatto elaborato) */
+async function addCanvasPhoto(canvas, name, extra = {}) {
+  const id = uid(), blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.95)), now = Date.now();
+  const rec = { id, name, file: name + '.jpg', type: 'image/jpeg', size: blob.size, raw: false, hash: id, added: now,
+    taken: extra.taken || now, w: canvas.width, h: canvas.height, exif: extra.exif || {}, rating: 0, flag: 0, label: '',
+    keywords: extra.keywords || [], albums: extra.albums || [], edits: null, versions: [], history: [], edited: 0 };
+  await DB.put('files', blob, id);
+  await DB.put('thumbs', await makeThumb(canvas, defaults()), id);
+  await DB.put('photos', rec);
+  photos.push(rec);
+  return rec;
+}
+
+/* Unione HDR o panorama delle foto selezionate (in ordine di scatto) */
+async function batchMerge(kind) {
+  const list = selected().sort((a, b) => a.taken - b.taken || a.name.localeCompare(b.name));
+  if (list.length < 2) { toast('Seleziona almeno 2 foto'); return; }
+  if (kind === 'hdr' && list.length > 7) { toast('Per l\'HDR usa da 2 a 7 foto'); return; }
+  let focal35 = 26;
+  if (kind === 'pano') {
+    const f = prompt('Focale equivalente 35 mm delle foto (se non la conosci lascia il valore proposto)', String(list[0].exif.focal35 || 26));
+    if (f === null) return;
+    focal35 = Math.max(8, Math.min(400, parseFloat(f) || 26));
+  }
+  try {
+    const canvases = [];
+    for (const [i, r] of list.entries()) { libStatus(`Caricamento ${i + 1} di ${list.length}…`); canvases.push((await photoSource(r)).canvas); }
+    const label = kind === 'hdr' ? 'HDR' : 'Panorama';
+    const prog = (v, step) => libStatus(`${label}: ${step} ${Math.round(v * 100)}%`);
+    const out = kind === 'hdr' ? await mergeHDR(canvases, prog) : await mergePanorama(canvases, { focal35, onProgress: prog });
+    const rec = await addCanvasPhoto(out, `${list[0].name} ${label}`, { taken: list[0].taken, exif: list[0].exif, albums: list[0].albums });
+    libStatus(''); lib.selecting = false; lib.sel.clear(); renderLibrary();
+    toast(`${label} creato (${out.width} × ${out.height})`);
+    return rec;
+  } catch (e) { libStatus(''); alert(`${kind === 'hdr' ? 'Unione HDR' : 'Panorama'}: ${e.message}`); console.error(e); }
 }
 
 /* Foto arrivate da "Condividi" nella galleria di Android */
@@ -152,6 +192,7 @@ function visiblePhotos() {
 /* ---------- Disegno della libreria ---------- */
 
 const ICON = {
+  camera: 'M4 8h4l2-3h4l2 3h4v11H4zM12 10a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
   plus: 'M12 5v14M5 12h14', search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4', filter: 'M4 5h16l-6 8v6l-4-2v-4z',
   check: 'M5 12l5 5 9-10', gear: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1',
   grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z', album: 'M4 6h16v13H4zM8 3h8', star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z',
@@ -183,7 +224,8 @@ function renderLibrary() {
   if (!['albums', 'settings'].includes(lib.view)) {
     top.append(ibtn('search', () => { lib.showSearch = !lib.showSearch; renderLibrary(); }, 'Cerca', lib.showSearch ? 'on' : ''),
       ibtn('filter', () => { lib.showFilters = !lib.showFilters; renderLibrary(); }, 'Filtri', lib.showFilters ? 'on' : ''),
-      ibtn('check', () => { lib.selecting = !lib.selecting; lib.sel.clear(); renderLibrary(); }, 'Seleziona', lib.selecting ? 'on' : ''));
+      ibtn('check', () => { lib.selecting = !lib.selecting; lib.sel.clear(); renderLibrary(); }, 'Seleziona', lib.selecting ? 'on' : ''),
+      ibtn('camera', openCamera, 'Fotocamera'));
   }
   const body = $('libBody'); body.innerHTML = '';
   if (lib.view === 'albums') renderAlbums(body);
@@ -293,6 +335,7 @@ function renderSelBar() {
     btn('★', () => n && batchRate()), btn('⚑', () => n && batchFlag()), btn('●', () => n && batchLabel()),
     btn('Parole chiave', () => n && batchKeywords()), btn('Album', () => n && batchAlbum()),
     btn('Preset', () => n && batchPreset()), btn('Incolla', () => n && batchPaste()),
+    btn('Unisci HDR', () => batchMerge('hdr')), btn('Panorama', () => batchMerge('pano')),
     btn('Esporta', () => n && batchExport(), 'primary'), btn('Elimina', () => n && batchDelete()));
 }
 
