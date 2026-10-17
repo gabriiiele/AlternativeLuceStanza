@@ -131,12 +131,15 @@ function outUV(G, target) {
 class Engine {
   constructor(canvas) {
     this.canvas = canvas;
-    const gl = this.gl = canvas.getContext('webgl', { preserveDrawingBuffer: true, antialias: false });
+    // WebGL2 permette le mipmap anche su immagini di qualsiasi dimensione: anteprima ridotta senza scalettature
+    const o = { preserveDrawingBuffer: true, antialias: false };
+    const gl = this.gl = canvas.getContext('webgl2', o) || canvas.getContext('webgl', o);
     if (!gl) throw new Error('WebGL non disponibile');
-    this.maxSize = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), 4096);
+    this.gl2 = typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext;
+    this.maxSize = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), 16384);
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-    this.main = this.program(SH_MAIN);
+    this.main = this.program(SH_MAIN, SH_VERT_MAIN);
     this.retouch = this.program(SH_RETOUCH);
     this.maskP = this.program(SH_MASK);
     this.imgTex = this.makeTex();
@@ -150,7 +153,7 @@ class Engine {
     this.rtKey = ''; this.mkKey = ''; this.maskRes = [1, 1];
   }
 
-  program(fs) {
+  program(fs, vs = SH_VERT) {
     const gl = this.gl;
     const sh = (type, src) => {
       const s = gl.createShader(type);
@@ -159,7 +162,7 @@ class Engine {
       return s;
     };
     const p = gl.createProgram();
-    gl.attachShader(p, sh(gl.VERTEX_SHADER, SH_VERT));
+    gl.attachShader(p, sh(gl.VERTEX_SHADER, vs));
     gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
     gl.bindAttribLocation(p, 0, 'p');
     gl.linkProgram(p);
@@ -209,6 +212,14 @@ class Engine {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     return { tex, fb, w, h };
   }
+  /* Mipmap per la riduzione di qualità nell'anteprima (solo WebGL2) */
+  mipmap(tex) {
+    if (!this.gl2) return;
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  }
   freeTarget(t) { if (!t) return; this.gl.deleteTexture(t.tex); this.gl.deleteFramebuffer(t.fb); }
 
   setImage(source, w, h) {
@@ -217,6 +228,7 @@ class Engine {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    this.mipmap(this.imgTex);
     this.size = [w, h];
     [this.rtA, this.rtB, this.mkA, this.mkB].forEach(t => this.freeTarget(t));
     this.rtA = this.rtB = null;
@@ -274,6 +286,7 @@ class Engine {
       input = out.tex; out = out === this.rtA ? this.rtB : this.rtA;
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    this.mipmap(input);
     this.srcTex = input; this.mkKey = 'x';
   }
 
@@ -339,15 +352,23 @@ class Engine {
     return [Math.max(1, Math.round(G.outW)), Math.max(1, Math.round(G.outH)), G.ar];
   }
 
-  /* opts: { full, showMask, overlay:[r,g,b,a], pcShow, brushes, brushVer } */
+  /* opts: { full, showMask, overlay:[r,g,b,a], pcShow, clip, brushes, brushVer, tile: { x, y, w, h, fb } }
+     Con tile disegna solo il riquadro (x, y dall'alto) di un risultato width × height nel framebuffer dato. */
   render(p, width, height, opts = {}) {
-    const gl = this.gl, [sw, sh] = this.size;
+    const gl = this.gl, [sw, sh] = this.size, t = opts.tile;
     this.updateRetouch(p.spots);
     this.updateMasks(p.masks, opts.brushes || [], opts.brushVer || '');
     const u = this.use(this.main);
-    if (this.canvas.width !== width || this.canvas.height !== height) { this.canvas.width = width; this.canvas.height = height; }
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.viewport(0, 0, width, height);
+    if (t) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, t.fb);
+      gl.viewport(0, 0, t.w, t.h);
+      gl.uniform4fv(u.uTile, [t.x / width, 1 - (t.y + t.h) / height, t.w / width, t.h / height]);
+    } else {
+      if (this.canvas.width !== width || this.canvas.height !== height) { this.canvas.width = width; this.canvas.height = height; }
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, width, height);
+      gl.uniform4fv(u.uTile, [0, 0, 1, 1]);
+    }
     this.setCurves(p);
     this.bind(0, this.srcTex, u.uImg); this.bind(1, this.curveTex, u.uCurve); this.bind(2, this.lutTex, u.uLut);
     this.bind(3, this.maskTex[0], u.uMask0); this.bind(4, this.maskTex[1], u.uMask1); this.bind(5, this.depthTex, u.uDepth);
@@ -377,6 +398,7 @@ class Engine {
     gl.uniform3fv(u.uNrC, [p.nrCol, p.nrColDetail, p.nrColSmooth]);
     gl.uniform4fv(u.uVigP, [p.vig, p.vigMid, p.vigRound, p.vigFeather]);
     gl.uniform3fv(u.uGrainP, [p.grain, p.grainSize, p.grainRough]);
+    gl.uniform4fv(u.uGrainRes, [G.outW, G.outH, width, height]);
     gl.uniform4fv(u.uBlurA, [p.lbAmt, { radial: 0, linear: 1, depth: this.hasDepth ? 2 : 0 }[p.lbType], p.lbX, p.lbY]);
     f1('uLbFocus', p.lbFocus);
     gl.uniform4fv(u.uBlurB, [p.lbSize, p.lbAngle * Math.PI / 180, p.lbFeather, p.lbBokeh]);
@@ -390,7 +412,30 @@ class Engine {
     gl.uniform4fv(u.uMk, MK);
     f1('uShowMask', opts.showMask ?? -1);
     gl.uniform4fv(u.uOverlay, opts.overlay || [1, 0, 0, 0.5]);
+    f1('uClip', opts.clip ? 1 : 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    if (t) gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  /* Rendering a tasselli in un canvas 2D: per l'esportazione a piena risoluzione senza limiti del canvas WebGL */
+  renderToCanvas(p, width, height, opts = {}) {
+    const gl = this.gl, T = 1024, tgt = this.target(T, T);
+    const out = Object.assign(document.createElement('canvas'), { width, height });
+    const ctx = out.getContext('2d');
+    const buf = new Uint8Array(T * T * 4);
+    try {
+      for (let y = 0; y < height; y += T) for (let x = 0; x < width; x += T) {
+        const w = Math.min(T, width - x), h = Math.min(T, height - y);
+        this.render(p, width, height, { ...opts, tile: { x, y, w, h, fb: tgt.fb } });
+        gl.bindFramebuffer(gl.FRAMEBUFFER, tgt.fb);
+        gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        const id = ctx.createImageData(w, h), row = w * 4;
+        for (let r = 0; r < h; r++) id.data.set(buf.subarray((h - 1 - r) * row, (h - r) * row), r * row);   // GL ha le righe dal basso
+        ctx.putImageData(id, x, y);
+      }
+    } finally { this.freeTarget(tgt); }
+    return out;
   }
 }
 

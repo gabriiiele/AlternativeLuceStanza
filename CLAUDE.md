@@ -19,6 +19,12 @@ Uso solo personale: niente reverse engineering o copia di codice/dati Adobe, sol
 - `tools.js` strumenti sull'immagine, Hough/Upright, pennello (tratti vettoriali in `params.masks[].strokes`)
 - `export.js` formati, TIFF, EXIF, filigrana · `ai.js` SR (TF.js, modelli in `vendor/sr`), profondità (transformers.js da CDN), look (Claude SDK o regole offline)
 - `db.js` IndexedDB · `library.js` libreria, import, impostazioni · `app.js` editor (pannelli in `PANELS`, barra in `TOOLS`)
+- Risoluzione: il motore lavora a piena risoluzione fino a `engine.maxSize` (MAX_TEXTURE_SIZE, max 16384). Anteprima con mipmap
+  (WebGL2); esportazione a tasselli con `engine.renderToCanvas`. Shader principale usa `SH_VERT_MAIN` con `uTile`.
+- Grana: definita in pixel del risultato a piena risoluzione (`uGrainRes`), deforma/ammorbidisce l'immagine e poi si somma
+  pesata sui mezzitoni; in anteprima ridotta viene attenuata come in una riduzione reale.
+- Interfaccia: `slider()` si regola solo trascinando in orizzontale (relativo), doppio tocco = neutro, tocco sul numero = valore preciso;
+  `group()` = sezione richiudibile. Menu ⋮ (`openMenu`) apre i pannelli fuori barra (Esporta, Organizza, Versioni, Cronologia, Info).
 - Tutti gli script sono classici e condividono lo scope globale; ordine in `index.html`.
 
 ## Convenzioni importanti

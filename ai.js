@@ -23,30 +23,42 @@ const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
 /* ---------- Super Resolution ---------- */
 
 const SR_MODELS = { fast: 'vendor/sr/slim-x2/model.json', quality: 'vendor/sr/medium-x2/model.json', x4: 'vendor/sr/medium-x4/model.json' };
+const SR_LIMIT = 16384;   // lato massimo di un canvas nel browser
 const srCache = {};
 
-/* src: canvas con l'immagine originale. Restituisce un canvas ingrandito. */
-async function superResolution(src, { mode = 'quality', maxSide = 4096, onProgress = () => {} } = {}) {
-  await loadScript('vendor/tf.min.js');
-  const tf = window.tf;
-  try { await tf.setBackend('webgl'); } catch { await tf.setBackend('cpu'); }
-  await tf.ready();
-  const model = srCache[mode] ||= await tf.loadLayersModel(SR_MODELS[mode]);
-  const scale = mode === 'x4' ? 4 : 2;
-
-  // riduce l'ingresso se il risultato supererebbe il limite
-  let w = src.width, h = src.height;
-  const k = Math.min(1, maxSide / (Math.max(w, h) * scale));
-  let input = src;
-  if (k < 1) {
-    w = Math.round(w * k); h = Math.round(h * k);
-    input = Object.assign(document.createElement('canvas'), { width: w, height: h });
-    input.getContext('2d').drawImage(src, 0, 0, w, h);
+/* Passaggi per arrivare al lato lungo voluto: ingrandimenti AI ×2 / ×4 in sequenza,
+   poi un ricampionamento finale di qualità per centrare i pixel esatti */
+function srPlan(w, h, target) {
+  const steps = []; let L = Math.max(w, h);
+  target = Math.min(SR_LIMIT, target);
+  while (L * 1.15 < target) {
+    const scale = target / L > 2 ? 4 : 2;   // poi il risultato viene ridotto ai pixel esatti
+    if (L * scale > SR_LIMIT) { L = Math.min(Math.floor(SR_LIMIT / scale), Math.ceil(target / scale)); steps.push({ shrink: L }); }
+    steps.push({ scale, from: L }); L *= scale;
   }
+  return { steps, target, k: target / Math.max(w, h) };
+}
+
+/* Ridimensionamento di qualità (a metà per volta quando si riduce molto) */
+function resizeCanvas(src, w, h) {
+  let cur = src;
+  while (cur.width / 2 >= w && cur.height / 2 >= h) {
+    const c = Object.assign(document.createElement('canvas'), { width: Math.round(cur.width / 2), height: Math.round(cur.height / 2) });
+    const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(cur, 0, 0, c.width, c.height); cur = c;
+  }
+  const c = Object.assign(document.createElement('canvas'), { width: w, height: h });
+  const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(cur, 0, 0, w, h);
+  return c;
+}
+
+/* Un passaggio del modello ESRGAN a tasselli */
+async function srPass(tf, input, mode, scale, onProgress) {
+  const model = srCache[mode] ||= await tf.loadLayersModel(SR_MODELS[mode]);
+  const w = input.width, h = input.height;
   const ictx = input.getContext('2d', { willReadFrequently: true });
   const out = Object.assign(document.createElement('canvas'), { width: w * scale, height: h * scale });
   const octx = out.getContext('2d');
-  const T = 96, P = 8, tiles = Math.ceil(w / T) * Math.ceil(h / T);
+  const T = 128, P = 10, tiles = Math.ceil(w / T) * Math.ceil(h / T);
   let done = 0;
   for (let ty = 0; ty < h; ty += T) for (let tx = 0; tx < w; tx += T) {
     const x0 = Math.max(0, tx - P), y0 = Math.max(0, ty - P), x1 = Math.min(w, tx + T + P), y1 = Math.min(h, ty + T + P);
@@ -62,9 +74,32 @@ async function superResolution(src, { mode = 'quality', maxSide = 4096, onProgre
     for (let i = 0, j = 0; i < data.length; i += 3, j += 4) { id.data[j] = data[i]; id.data[j + 1] = data[i + 1]; id.data[j + 2] = data[i + 2]; id.data[j + 3] = 255; }
     octx.putImageData(id, tx * scale, ty * scale);
     onProgress(++done / tiles);
-    await nextFrame();
+    if (done % 4 === 0) await nextFrame();
   }
   return out;
+}
+
+/* src: canvas con l'originale a piena risoluzione; target: lato lungo voluto in pixel.
+   fast = modello leggero per i passaggi ×2. Restituisce un canvas. */
+async function superResolution(src, { target, fast = false, onProgress = () => {} } = {}) {
+  await loadScript('vendor/tf.min.js');
+  const tf = window.tf;
+  try { await tf.setBackend('webgl'); } catch { await tf.setBackend('cpu'); }
+  await tf.ready();
+  const plan = srPlan(src.width, src.height, target);
+  // peso di ogni passaggio = pixel elaborati, per una barra di avanzamento uniforme
+  const passes = plan.steps.filter(s => s.scale), tot = passes.reduce((a, s) => a + s.from * s.from, 0) || 1;
+  let cur = src, doneW = 0;
+  for (const s of plan.steps) {
+    if (s.shrink) { const k = s.shrink / Math.max(cur.width, cur.height); cur = resizeCanvas(cur, Math.round(cur.width * k), Math.round(cur.height * k)); continue; }
+    const wgt = s.from * s.from / tot;
+    cur = await srPass(tf, cur, s.scale === 4 ? 'x4' : fast ? 'fast' : 'quality', s.scale, v => onProgress((doneW + v * wgt) * 0.97));
+    doneW += wgt;
+  }
+  const k = plan.target / Math.max(cur.width, cur.height);
+  if (Math.abs(k - 1) > 1e-3) cur = resizeCanvas(cur, Math.round(cur.width * k), Math.round(cur.height * k));
+  onProgress(1);
+  return cur;
 }
 
 /* ---------- Mappa di profondità ---------- */

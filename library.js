@@ -7,7 +7,7 @@ const RAW_RE = /\.(dng|cr2|cr3|crw|nef|nrw|arw|srf|sr2|raf|orf|rw2|pef|srw|3fr|i
 const LABELS = { red: '#e53935', yellow: '#fdd835', green: '#43a047', blue: '#1e88e5', purple: '#8e24aa' };
 
 const appSettings = (() => {
-  const d = { theme: 'dark', cols: 3, importPreset: '', skipDuplicates: true, sort: 'taken', dir: -1 };
+  const d = { theme: 'dark', cols: 3, importPreset: '', skipDuplicates: true, sort: 'taken', dir: -1, viewHist: true, viewInfo: false, viewClip: false };
   try { return { ...d, ...JSON.parse(localStorage.getItem('appSettings') || '{}') }; } catch { return d; }
 })();
 function saveAppSettings() { try { localStorage.setItem('appSettings', JSON.stringify(appSettings)); } catch { /* spazio pieno */ } }
@@ -41,38 +41,42 @@ function exifDate(s) {
   return m ? +new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : 0;
 }
 
-/* Restituisce { canvas (max 4096 px), tags, taken, app1 } */
-async function decodePhoto(blob, name) {
+/* Lato massimo gestito dal motore (dipende dalla GPU, fino a 16384 px) */
+const maxSide = () => (typeof engine !== 'undefined' && engine ? engine.maxSize : 4096);
+
+/* Restituisce { canvas (al massimo max px sul lato lungo), tags, taken, app1 } */
+async function decodePhoto(blob, name, max = maxSide()) {
   if (RAW_RE.test(name)) return decodeRaw(blob);
   const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
-  const k = Math.min(1, 4096 / Math.max(bmp.width, bmp.height));
+  const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
   const c = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
-  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close?.();
   const ex = readExif(await blob.slice(0, 256 * 1024).arrayBuffer());
   return { canvas: c, tags: ex.tags, taken: exifDate(ex.tags.dateOriginal || ex.tags.date), app1: ex.app1 };
 }
 
 /* Sorgente da modificare: RAW già decodificato oppure il file originale */
-async function photoSource(rec) {
+async function photoSource(rec, max) {
   const dec = rec.raw ? await DB.get('decoded', rec.id) : null;
-  if (dec) { const r = await decodePhoto(dec, 'x.jpg'); r.tags = rec.exif; return r; }
-  return decodePhoto(await DB.get('files', rec.id), rec.name);
+  if (dec) { const r = await decodePhoto(dec, 'x.jpg', max); r.tags = rec.exif; return r; }
+  return decodePhoto(await DB.get('files', rec.id), rec.name, max);
 }
 
 const scaledCanvas = (src, max) => {
   const k = Math.min(1, max / Math.max(src.width, src.height));
   const c = Object.assign(document.createElement('canvas'), { width: Math.max(1, Math.round(src.width * k)), height: Math.max(1, Math.round(src.height * k)) });
-  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+  const x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, c.width, c.height);
   return c;
 };
 
 /* Miniatura con le modifiche (motore dedicato alla libreria) */
-async function makeThumb(src, p, eng = libEngine, brushes) {
-  const s = scaledCanvas(src, 480);
+async function makeThumb(src, p, eng = libEngine, brushes, size = 400, type = 'image/jpeg') {
+  const s = scaledCanvas(src, size * 1.2);
   if (eng === libEngine) eng.setImage(s, s.width, s.height);
-  const [ow, oh] = eng.outputSize(p), k = Math.min(1, 400 / Math.max(ow, oh));
+  const [ow, oh] = eng.outputSize(p), k = Math.min(1, size / Math.max(ow, oh));
   eng.render(effectiveParams(p), Math.max(1, Math.round(ow * k)), Math.max(1, Math.round(oh * k)), brushes || {});
-  return new Promise(r => eng.canvas.toBlob(r, 'image/jpeg', 0.82));
+  return new Promise(r => eng.canvas.toBlob(r, type, 0.82));
 }
 
 /* ---------- Importazione ---------- */
@@ -119,7 +123,7 @@ function visiblePhotos() {
     if (lib.view === 'album' && !p.albums.includes(lib.album)) return false;
     if (lib.view === 'picks' && p.flag !== 1) return false;
     if (lib.view === 'rejects' && p.flag !== -1) return false;
-    if (lib.view === 'edited' && !p.edited) return false;
+    if (lib.view === 'edited' && !isEdited(p.edits)) return false;
     if (lib.view === 'rated' && p.rating < 1) return false;
     if (f.rating && p.rating < f.rating) return false;
     if (f.flag === 'pick' && p.flag !== 1) return false;
@@ -127,7 +131,7 @@ function visiblePhotos() {
     if (f.flag === 'reject' && p.flag !== -1) return false;
     if (f.label && p.label !== f.label) return false;
     if (f.raw && !p.raw) return false;
-    if (f.edited && !p.edited) return false;
+    if (f.edited && !isEdited(p.edits)) return false;
     if (q) {
       const d = new Date(p.taken), albumNames = p.albums.map(a => albums.find(x => x.id === a)?.name || '').join(' ');
       const hay = [p.name, p.file, ...p.keywords, p.exif.make, p.exif.model, p.exif.lens, albumNames,
@@ -148,6 +152,7 @@ const ICON = {
   check: 'M5 12l5 5 9-10', gear: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1',
   grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z', album: 'M4 6h16v13H4zM8 3h8', star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z',
   flag: 'M5 21V4h11l-2 4 2 4H5', back: 'M15 5l-7 7 7 7', share: 'M12 3v12M7 8l5-5 5 5M5 14v6h14v-6', more: 'M5 12h.01M12 12h.01M19 12h.01',
+  edit: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4',
   sort: 'M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4', trash: 'M5 7h14M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3', tag: 'M3 12V4h8l10 10-8 8z',
 };
 const icon = (name, size = 22) => {
@@ -246,8 +251,8 @@ function fillGrid() {
     if (p.flag === 1) badges.append(el('span', { textContent: '⚑' }));
     if (p.flag === -1) badges.append(el('span', { textContent: '✕' }));
     if (p.raw) badges.append(el('span', { textContent: 'RAW' }));
-    if (p.edited) badges.append(el('span', { textContent: '◐' }));
     cell.append(badges);
+    if (isEdited(p.edits)) { const m = el('span', { className: 'edmark', title: 'Modificata' }); m.append(icon('edit', 14)); cell.append(m); }
     if (p.label) cell.append(el('i', { className: 'lbl', style: `background:${LABELS[p.label]}` }));
     cell.onclick = () => {
       if (lib.selecting) { lib.sel.has(p.id) ? lib.sel.delete(p.id) : lib.sel.add(p.id); cell.classList.toggle('sel'); renderSelBar(); }
@@ -305,7 +310,7 @@ async function batchAlbum() {
   await savePhotos(selected()); fillGrid(); toast('Album aggiornato');
 }
 async function rethumb(p) {
-  const src = await photoSource(p);
+  const src = await photoSource(p, 1200);
   await DB.put('thumbs', await makeThumb(src.canvas, p.edits || defaults()), p.id); dropThumb(p.id);
 }
 async function batchPreset() {

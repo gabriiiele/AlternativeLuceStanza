@@ -12,23 +12,18 @@ const BG = {
   sat: 'linear-gradient(90deg,#888,#f44)', exp: 'linear-gradient(90deg,#000,#fff)',
 };
 
-/* Barra strumenti in stile Lightroom: ogni strumento raggruppa uno o più pannelli */
+/* Barra strumenti in stile Lightroom: ogni strumento raggruppa uno o più pannelli.
+   Versioni, Cronologia, Info, Organizza ed Esporta si aprono dal menu ⋮ in alto. */
 const TOOLS = [
-  { label: 'Preset', icon: 'M4 6h16M4 12h16M4 18h10', subs: ['Preset', 'Profili'] },
-  { label: 'AI', icon: 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2zM19 15l1 2 2 1-2 1-1 2-1-2-2-1 2-1z', subs: ['Look AI', 'Super Resolution', 'Profondità'] },
+  { label: 'Preset', icon: 'M4 6h16M4 12h16M4 18h10', subs: ['Preset', 'Profili', 'LUT'] },
   { label: 'Auto', icon: 'M4 20l6-16h4l6 16M7 14h10', action: () => autoTone() },
-  { label: 'Luce', icon: 'M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM12 1v3M12 20v3M1 12h3M20 12h3M4 4l2 2M18 18l2 2M4 20l2-2M18 6l2-2', subs: ['Luce', 'Curva'] },
-  { label: 'Colore', icon: 'M12 3a9 9 0 1 0 0 18c1 0 2-1 2-2 0-2 2-2 3-2a4 4 0 0 0 4-4c0-6-4-10-9-10zM7 12h.01M9 7h.01M15 7h.01', subs: ['Colore', 'Mixer', 'Colore punto', 'Gradazione', 'B&N'] },
-  { label: 'Effetti', icon: 'M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3z', subs: ['Effetti'] },
-  { label: 'Dettagli', icon: 'M3 3l18 18M3 12h4M17 12h4M12 3v4M12 17v4', subs: ['Dettagli'] },
-  { label: 'Ottica', icon: 'M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', subs: ['Ottica'] },
-  { label: 'Geometria', icon: 'M4 20L8 4h8l4 16zM9 12h6', subs: ['Trasforma'] },
-  { label: 'Ritaglio', icon: 'M6 2v16h16M2 6h16v16', subs: ['Ritaglio'] },
+  { label: 'Modifica', icon: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4', subs: ['Luce', 'Curva', 'Colore', 'Mixer', 'Colore punto', 'Gradazione', 'B&N', 'Effetti', 'Dettagli', 'Ottica', 'Sfocatura', 'Calibrazione'] },
+  { label: 'Ritaglia', icon: 'M6 2v16h16M2 6h16v16', subs: ['Ritaglio', 'Trasforma'] },
   { label: 'Maschere', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 3v18', subs: ['Maschere'] },
   { label: 'Ritocco', icon: 'M4 20l10-10M14 4l6 6-4 4-6-6zM4 20h5', subs: ['Ritocco'] },
-  { label: 'Sfocatura', icon: 'M12 6a6 6 0 1 0 0 12 6 6 0 0 0 0-12zM3 12h.01M21 12h.01M12 3h.01M12 21h.01', subs: ['Sfocatura'] },
-  { label: 'Altro', icon: 'M5 12h.01M12 12h.01M19 12h.01', subs: ['Calibrazione', 'LUT', 'Versioni', 'Cronologia', 'Info', 'Esporta'] },
+  { label: 'AI', icon: 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2zM19 15l1 2 2 1-2 1-1 2-1-2-2-1 2-1z', subs: ['Look AI', 'Super Resolution', 'Profondità'] },
 ];
+const SUB_LABEL = { 'Trasforma': 'Geometria', 'Colore punto': 'Punto' };
 const TAB_ORDER = TOOLS.flatMap(t => t.subs || []);
 
 const $ = id => document.getElementById(id);
@@ -39,7 +34,7 @@ let bandIdx = 0, hslMode = 'color', curveMode = 'point', curveCh = 'curve', grad
 let maskIdx = 0, compIdx = 0, overlayOn = true, overlayCol = [1, 0.2, 0.2, 0.5], brushMode = false;
 let pcIdx = 0, pcShowRange = false, guidedOn = false;
 let curPreset = null, presetAmt = 1, presetCat = 'Tutti', presetQuery = '', presetManage = false, profGroup = 'Base';
-let clipboard = null, versions = [];
+let clipboard = null, versions = [], prevEdits = null, menuTab = 'Preset';
 const view = { scale: 1, x: 0, y: 0 };
 
 /* ---------- Utilità interfaccia ---------- */
@@ -64,24 +59,79 @@ function toast(text) {
   clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, 2500);
 }
 
-const fmtVal = (v, step) => (step >= 1 ? String(Math.round(v)) : (+v).toFixed(2));
+/* Formato del valore mostrato: valori piccoli come in Lightroom (−100…+100), il resto con decimali */
+function sliderFmt(min, max, step, o) {
+  if (step >= 1) return { show: v => String(Math.round(v)), parse: t => parseFloat(t) };
+  const sign = v => (min < 0 && v > 0 ? '+' : '');
+  if (o.dec || max - min > 4) { const d = o.dec || 2; return { show: v => sign(v) + (+v).toFixed(d), parse: t => parseFloat(t.replace(',', '.')) }; }
+  return { show: v => sign(v) + Math.round(v * 100), parse: t => parseFloat(t.replace(',', '.')) / 100 };
+}
 
-/* Slider con cronologia; doppio tocco = valore neutro */
+/* Slider a prova di tocchi accidentali:
+   - si regola solo trascinando in orizzontale (in modo relativo: un tocco non fa saltare il valore)
+   - un trascinamento verticale scorre il pannello
+   - doppio tocco = valore neutro, tocco sul numero = inserimento preciso */
 function slider(label, min, max, step, get, set, o = {}) {
-  const neutral = o.neutral ?? 0;
-  const inp = el('input', { type: 'range', min, max, step, value: get() });
-  if (o.bg) { inp.style.background = o.bg; inp.classList.add('grad'); }
-  const out = el('output', { textContent: fmtVal(get(), step) });
-  let before = null;
-  inp.addEventListener('pointerdown', () => { before = clone(params); });
-  inp.addEventListener('input', () => { set(+inp.value); out.textContent = fmtVal(inp.value, step); o.onInput?.(); redraw(); });
-  inp.addEventListener('change', () => {
-    if (before) { pushHistory(label, before); before = null; }
+  const neutral = o.neutral ?? 0, fmt = sliderFmt(min, max, step, o);
+  const rail = el('i', { className: 'rail' + (o.bg ? ' grad' : '') }), fill = el('i', { className: 'fill' }), knob = el('i', { className: 'knob' });
+  if (o.bg) rail.style.background = o.bg;
+  const track = el('div', { className: 'track' }, el('div', { className: 'tin' }, rail, fill, knob));
+  const out = el('output');
+  const row = el('div', { className: 'sl' }, el('label', { textContent: label }), out, track);
+  const z = Math.min(1, Math.max(0, (neutral - min) / (max - min)));
+  const paint = v => {
+    const t = Math.min(1, Math.max(0, (v - min) / (max - min)));
+    knob.style.left = t * 100 + '%'; fill.style.left = Math.min(t, z) * 100 + '%'; fill.style.width = Math.abs(t - z) * 100 + '%';
+    out.textContent = fmt.show(v);
+    row.classList.toggle('mod', Math.abs(v - neutral) > 1e-9);
+    const g = row.closest('.grp'); if (g) g.classList.toggle('mod', !!g.querySelector('.sl.mod'));
+  };
+  const setV = v => {
+    v = Math.min(max, Math.max(min, Math.round((v - min) / step) * step + min));
+    v = +v.toFixed(6); set(v); paint(v); o.onInput?.(); redraw();
+  };
+  let st = null, lastTap = 0;
+  track.addEventListener('pointerdown', e => { st = { x: e.clientX, y: e.clientY, v: +get(), active: false, w: Math.max(1, track.clientWidth - 20) }; });
+  track.addEventListener('pointermove', e => {
+    if (!st) return;
+    const dx = e.clientX - st.x, dy = e.clientY - st.y;
+    if (!st.active) {
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { st = null; return; }
+      if (Math.abs(dx) < 8) return;
+      st.active = true; st.x = e.clientX; st.before = clone(params);
+      track.setPointerCapture(e.pointerId); row.classList.add('drag');
+      return;
+    }
+    setV(st.v + dx / st.w * (max - min));
   });
-  inp.addEventListener('dblclick', () => {
-    commit(label); set(neutral); inp.value = neutral; out.textContent = fmtVal(neutral, step); o.onInput?.(); redraw();
+  const up = e => {
+    if (!st) return;
+    if (st.active) pushHistory(label, st.before);
+    else if (e.type === 'pointerup') {
+      const now = Date.now();
+      if (now - lastTap < 350) { commit(label); setV(neutral); lastTap = 0; } else lastTap = now;
+    }
+    row.classList.remove('drag'); st = null;
+  };
+  track.addEventListener('pointerup', up); track.addEventListener('pointercancel', up);
+  out.addEventListener('click', () => {
+    const t = prompt(label, fmt.show(get())); if (t == null) return;
+    const v = fmt.parse(t); if (isNaN(v)) return;
+    commit(label); setV(v);
   });
-  return el('div', { className: 'row' }, el('label', { textContent: label }), inp, out);
+  paint(+get());
+  return row;
+}
+
+/* Sezione richiudibile; il puntino segnala che contiene valori modificati */
+const groupOpen = {};
+function group(title, open, ...kids) {
+  const d = el('details', { className: 'grp' });
+  d.open = groupOpen[title] ?? open;
+  d.append(el('summary', {}, el('span', { textContent: title }), el('i', { className: 'dot' })), ...kids.filter(k => k != null));
+  d.addEventListener('toggle', () => { groupOpen[title] = d.open; });
+  d.classList.toggle('mod', !!d.querySelector('.sl.mod'));
+  return d;
 }
 /* Slider legato a una chiave di params */
 const S = (k, label, min, max, step = 0.01, o = {}) =>
@@ -125,7 +175,7 @@ function pushHistory(label, state) {
   history.undo.push({ label, state });
   if (history.undo.length > 200) history.undo.shift();
   history.redo.length = 0;
-  syncButtons(); scheduleSave();
+  setTimeout(syncButtons); scheduleSave();
 }
 const commit = label => pushHistory(label, clone(params));
 
@@ -148,7 +198,14 @@ function jumpHistory(i) {
 function syncButtons() {
   $('btnUndo').disabled = !history.undo.length;
   $('btnRedo').disabled = !history.redo.length;
+  $('btnReset').disabled = !loaded || !isEdited(params);
   for (const id of ['btnCompare', 'btnExport']) $(id).disabled = !loaded;
+}
+/* Ripristina tutte le modifiche (annullabile) */
+function resetAll() {
+  if (!loaded || !isEdited(params)) return;
+  commit('Ripristina tutto'); params = defaults(); curPreset = null; lookLast = null;
+  renderPanel(); syncButtons(); toast('Modifiche ripristinate · ↶ per annullare');
 }
 function applyState(s) { params = clone(s); renderPanel(); redraw(); syncButtons(); scheduleSave(); }
 
@@ -158,7 +215,7 @@ function viewSize() {
   const st = $('stage').getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
   const [ow, oh] = engine.outputSize(params, tool.mode === 'crop');
   const s = Math.min(st.width / ow, st.height / oh);
-  const k = Math.min(1, (ow * s * dpr * Math.max(1, view.scale)) / ow, 4096 / Math.max(ow, oh));
+  const k = Math.min(1, (ow * s * dpr * Math.max(1, view.scale)) / ow, engine.maxSize / Math.max(ow, oh));
   return [Math.max(1, Math.round(ow * k)), Math.max(1, Math.round(oh * k)), ow * s, oh * s];
 }
 
@@ -175,10 +232,11 @@ function redraw() {
       full: tool.mode === 'crop', brushes: b.list, brushVer: b.ver,
       showMask: curTab === 'Maschere' && overlayOn && params.masks[maskIdx] ? maskIdx : -1, overlay: overlayCol,
       pcShow: curTab === 'Colore punto' && pcShowRange && params.pc[pcIdx] ? pcIdx : -1,
+      clip: appSettings.viewClip && !comparing,
     });
     const cv = $('view');
     cv.style.width = Math.round(cw) + 'px'; cv.style.height = Math.round(ch) + 'px';
-    applyView(); drawHistogram(); drawOverlay();
+    applyView(); if (appSettings.viewHist) drawHistogram(); drawOverlay();
   });
 }
 
@@ -224,27 +282,34 @@ function syncToolMode() {
 
 function renderTabs() {
   const tool = TOOLS.find(t => t.subs?.includes(curTab));
+  if (tool) menuTab = curTab;
   const nav = $('tools'); nav.innerHTML = '';
   for (const t of TOOLS) {
     const b = el('button', { className: 'toolbtn' + (t === tool ? ' on' : ''), onclick: () => {
       if (t.action) { t.action(); return; }
-      curTab = t.subs.includes(curTab) ? curTab : t.subs[0]; renderTabs(); renderPanel();
+      curTab = t.subs.includes(curTab) ? curTab : t.lastSub || t.subs[0]; renderTabs(); renderPanel();
     } });
     const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('viewBox', '0 0 24 24'); sv.classList.add('ic');
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', t.icon); sv.append(path);
     b.append(sv, el('span', { textContent: t.label }));
     nav.append(b);
   }
-  nav.querySelector('.on')?.scrollIntoView({ inline: 'center', block: 'nearest' });
   const sub = $('tabs'); sub.innerHTML = ''; sub.hidden = !tool || tool.subs.length < 2;
-  if (tool) for (const name of tool.subs)
-    sub.append(el('button', { textContent: name, className: name === curTab ? 'on' : '', onclick: () => { curTab = name; renderTabs(); renderPanel(); } }));
+  if (tool) {
+    tool.lastSub = curTab;
+    for (const name of tool.subs)
+      sub.append(el('button', { textContent: SUB_LABEL[name] || name, className: name === curTab ? 'on' : '', onclick: () => { curTab = name; renderTabs(); renderPanel(); } }));
+    sub.querySelector('.on')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
 }
 
 const PANELS = {};
 function renderPanel() {
   const panel = $('panel'), top = panel.scrollTop; panel.innerHTML = '';
   const append = panel.append.bind(panel);
+  if (!TOOLS.some(t => t.subs?.includes(curTab)))   // pannello aperto dal menu: titolo e chiusura
+    append(el('div', { className: 'phead' }, el('b', { textContent: curTab }),
+      btn('✕', () => { curTab = menuTab; renderTabs(); renderPanel(); }, 'ibtn')));
   PANELS[curTab]({ append: (...k) => append(...k.filter(x => x != null)) });
   panel.scrollTop = top;
   syncToolMode(); redraw();
@@ -252,7 +317,7 @@ function renderPanel() {
 
 /* Luce */
 PANELS['Luce'] = p => {
-  p.append(S('exp', 'Esposizione', -3, 3), S('contrast', 'Contrasto', -1, 1), S('hi', 'Alte luci', -1, 1), S('sh', 'Ombre', -1, 1),
+  p.append(S('exp', 'Esposizione', -3, 3, 0.01, { bg: BG.exp }), S('contrast', 'Contrasto', -1, 1), S('hi', 'Alte luci', -1, 1), S('sh', 'Ombre', -1, 1),
     S('wh', 'Bianchi', -1, 1), S('bl', 'Neri', -1, 1), actions(btn('Auto', autoTone)));
 };
 
@@ -472,30 +537,31 @@ PANELS['B&N'] = p => {
 
 /* Effetti */
 PANELS['Effetti'] = p => {
-  p.append(S('texture', 'Texture', -1, 1), S('clarity', 'Chiarezza', -1, 1), S('dehaze', 'Rimozione foschia', -1, 1),
-    section('Vignettatura'), S('vig', 'Quantità', -1, 1), S('vigMid', 'Punto medio', 0, 1), S('vigRound', 'Rotondità', -1, 1),
-    S('vigFeather', 'Sfumatura', 0, 1), S('vigHi', 'Alte luci', 0, 1),
-    section('Granulosità'), S('grain', 'Quantità', 0, 1), S('grainSize', 'Dimensione', 0.5, 3), S('grainRough', 'Ruvidità', 0, 1),
-    section('Creativi'), S('fade', 'Dissolvenza neri', 0, 1), S('glow', 'Bagliore', 0, 1), S('halation', 'Alone pellicola', 0, 1),
-    S('ca', 'Aberrazione cromatica', 0, 1));
+  p.append(group('Presenza', true, S('texture', 'Texture', -1, 1), S('clarity', 'Chiarezza', -1, 1), S('dehaze', 'Rimozione foschia', -1, 1)),
+    group('Granulosità', true, S('grain', 'Quantità', 0, 1), S('grainSize', 'Dimensione', 0.5, 3, 0.01, { dec: 2 }), S('grainRough', 'Ruvidità', 0, 1),
+      note('La grana deforma e ammorbidisce leggermente i dettagli, come la pellicola. Valutala ingrandendo al 100%.')),
+    group('Vignettatura', false, S('vig', 'Quantità', -1, 1), S('vigMid', 'Punto medio', 0, 1), S('vigRound', 'Rotondità', -1, 1),
+      S('vigFeather', 'Sfumatura', 0, 1), S('vigHi', 'Alte luci', 0, 1)),
+    group('Creativi', false, S('fade', 'Dissolvenza neri', 0, 1), S('glow', 'Bagliore', 0, 1), S('halation', 'Alone pellicola', 0, 1),
+      S('ca', 'Aberrazione cromatica', 0, 1)));
 };
 
 /* Dettagli */
 PANELS['Dettagli'] = p => {
-  p.append(section('Nitidezza'), S('sharp', 'Quantità', 0, 2), S('sharpRad', 'Raggio', 0.5, 3), S('sharpDetail', 'Dettagli', 0, 1),
-    S('sharpMask', 'Mascheratura', 0, 1),
-    section('Riduzione disturbo luminanza'), S('nrLum', 'Luminanza', 0, 1), S('nrLumDetail', 'Dettagli', 0, 1), S('nrLumContrast', 'Contrasto', 0, 1),
-    section('Riduzione disturbo colore'), S('nrCol', 'Colore', 0, 1), S('nrColDetail', 'Dettagli', 0, 1), S('nrColSmooth', 'Uniformità', 0, 1),
+  p.append(group('Nitidezza', true, S('sharp', 'Quantità', 0, 2), S('sharpRad', 'Raggio', 0.5, 3, 0.01, { dec: 1 }), S('sharpDetail', 'Dettagli', 0, 1),
+    S('sharpMask', 'Mascheratura', 0, 1)),
+    group('Riduzione disturbo luminanza', false, S('nrLum', 'Luminanza', 0, 1), S('nrLumDetail', 'Dettagli', 0, 1), S('nrLumContrast', 'Contrasto', 0, 1)),
+    group('Riduzione disturbo colore', false, S('nrCol', 'Colore', 0, 1), S('nrColDetail', 'Dettagli', 0, 1), S('nrColSmooth', 'Uniformità', 0, 1)),
     note('Suggerimento: ingrandisci con due dita per valutare nitidezza e rumore.'));
 };
 
 /* Ottica */
 PANELS['Ottica'] = p => {
-  p.append(section('Aberrazione cromatica'), S('caR', 'Rosso / ciano', -1, 1), S('caB', 'Blu / giallo', -1, 1),
-    section('Frange viola'), S('defP', 'Quantità', 0, 1), S('defPLo', 'Tonalità da', 220, 360, 1, { bg: HUE_BG }), S('defPHi', 'Tonalità a', 220, 360, 1, { bg: HUE_BG }),
-    section('Frange verdi'), S('defG', 'Quantità', 0, 1), S('defGLo', 'Tonalità da', 40, 200, 1, { bg: HUE_BG }), S('defGHi', 'Tonalità a', 40, 200, 1, { bg: HUE_BG }),
-    section('Correzione obiettivo manuale'), S('lensDist', 'Distorsione', -1, 1), S('lensVig', 'Vignettatura obiettivo', -1, 1), S('lensVigMid', 'Punto medio', 0, 1),
-    note('I profili automatici degli obiettivi richiederebbero un database esterno: qui la correzione è manuale.'));
+  p.append(group('Aberrazione cromatica', true, S('caR', 'Rosso / ciano', -1, 1), S('caB', 'Blu / giallo', -1, 1)),
+    group('Frange viola', false, S('defP', 'Quantità', 0, 1), S('defPLo', 'Tonalità da', 220, 360, 1, { bg: HUE_BG }), S('defPHi', 'Tonalità a', 220, 360, 1, { bg: HUE_BG })),
+    group('Frange verdi', false, S('defG', 'Quantità', 0, 1), S('defGLo', 'Tonalità da', 40, 200, 1, { bg: HUE_BG }), S('defGHi', 'Tonalità a', 40, 200, 1, { bg: HUE_BG })),
+    group('Correzione obiettivo manuale', false, S('lensDist', 'Distorsione', -1, 1), S('lensVig', 'Vignettatura obiettivo', -1, 1), S('lensVigMid', 'Punto medio', 0, 1),
+      note('I profili automatici degli obiettivi richiederebbero un database esterno: qui la correzione è manuale.')));
 };
 
 /* Ritaglio e rotazione */
@@ -603,10 +669,10 @@ PANELS['Maschere'] = p => {
       params.masks.splice(maskIdx + 1, 0, c); maskIdx++; renderPanel();
     }),
     btn('Elimina', () => { commit('Elimina maschera'); params.masks.splice(maskIdx, 1); maskIdx = Math.max(0, maskIdx - 1); renderPanel(); })),
-  actions(toggle('Mostra sovrapposizione', () => overlayOn, v => { overlayOn = v; }, true),
+  group('Sovrapposizione', false, actions(toggle('Mostra sovrapposizione', () => overlayOn, v => { overlayOn = v; }, true),
     ...[[1, 0.2, 0.2], [0.2, 1, 0.3], [0.3, 0.5, 1], [1, 1, 1]].map(c => el('button', { className: 'chip' + (c.every((v, i) => v === overlayCol[i]) ? ' on' : ''),
       style: `background:rgb(${c.map(v => v * 255).join(',')})`, onclick: () => { overlayCol = [...c, overlayCol[3]]; renderPanel(); } }))),
-  slider('Opacità sovrapposizione', 0.1, 1, 0.01, () => overlayCol[3], v => { overlayCol[3] = v; }, { neutral: 0.5 }));
+  slider('Opacità sovrapposizione', 0.1, 1, 0.01, () => overlayCol[3], v => { overlayCol[3] = v; }, { neutral: 0.5 })));
 
   // componenti
   p.append(section('Componenti'));
@@ -660,14 +726,16 @@ PANELS['Maschere'] = p => {
 
   // regolazioni della maschera
   const a = m.adj;
-  const A = (k, label, min, max, step = 0.01, o = {}) => p.append(slider(label, min, max, step, () => a[k], v => { a[k] = v; }, { neutral: defMaskAdj()[k], ...o }));
-  p.append(section('Regolazioni della maschera'), slider('Quantità', 0, 2, 0.01, () => m.amount, v => { m.amount = v; }, { neutral: 1 }));
-  A('exp', 'Esposizione', -3, 3); A('contrast', 'Contrasto', -1, 1); A('hi', 'Alte luci', -1, 1); A('sh', 'Ombre', -1, 1);
-  A('wh', 'Bianchi', -1, 1); A('bl', 'Neri', -1, 1); A('temp', 'Temperatura', -1, 1, 0.01, { bg: BG.temp }); A('tint', 'Tinta', -1, 1, 0.01, { bg: BG.tint });
-  A('hue', 'Tonalità', -1, 1); A('sat', 'Saturazione', -1, 1); A('texture', 'Texture', -1, 1); A('clarity', 'Chiarezza', -1, 1);
-  A('dehaze', 'Rimozione foschia', -1, 1); A('sharp', 'Nitidezza', -1, 2); A('noise', 'Riduzione disturbo', 0, 1); A('moire', 'Moiré', 0, 1);
-  A('ovH', 'Colore sovrapposto: tinta', 0, 360, 1, { bg: HUE_BG }); A('ovS', 'Colore sovrapposto: forza', 0, 1);
-  p.append(actions(btn('Azzera regolazioni', () => { commit('Maschera'); m.adj = defMaskAdj(); renderPanel(); })));
+  const A = (k, label, min, max, step = 0.01, o = {}) => slider(label, min, max, step, () => a[k], v => { a[k] = v; }, { neutral: defMaskAdj()[k], ...o });
+  p.append(section('Regolazioni della maschera'), slider('Quantità', 0, 2, 0.01, () => m.amount, v => { m.amount = v; }, { neutral: 1 }),
+    group('Luce (maschera)', true, A('exp', 'Esposizione', -3, 3), A('contrast', 'Contrasto', -1, 1), A('hi', 'Alte luci', -1, 1), A('sh', 'Ombre', -1, 1),
+      A('wh', 'Bianchi', -1, 1), A('bl', 'Neri', -1, 1)),
+    group('Colore (maschera)', false, A('temp', 'Temperatura', -1, 1, 0.01, { bg: BG.temp }), A('tint', 'Tinta', -1, 1, 0.01, { bg: BG.tint }),
+      A('hue', 'Tonalità', -1, 1), A('sat', 'Saturazione', -1, 1),
+      A('ovH', 'Colore sovrapposto: tinta', 0, 360, 1, { bg: HUE_BG }), A('ovS', 'Colore sovrapposto: forza', 0, 1)),
+    group('Effetti (maschera)', false, A('texture', 'Texture', -1, 1), A('clarity', 'Chiarezza', -1, 1), A('dehaze', 'Rimozione foschia', -1, 1),
+      A('sharp', 'Nitidezza', -1, 2), A('noise', 'Riduzione disturbo', 0, 1), A('moire', 'Moiré', 0, 1)),
+    actions(btn('Azzera regolazioni', () => { commit('Maschera'); m.adj = defMaskAdj(); renderPanel(); })));
 };
 
 function pickForComp() {
@@ -778,25 +846,49 @@ function saveLookAsPreset() {
   saveUserPresets(list); toast('Salvato nel gruppo "Look AI"');
 }
 
-let srMode = 'quality';
+/* Super Resolution: lavora sull'originale a piena risoluzione e arriva ai pixel scelti */
+const sr = { id: null, w: 0, h: 0, target: 0, fast: false };
+async function srDims() {
+  if (sr.id === curPhoto.id) return;
+  const blob = (curPhoto.raw && await DB.get('decoded', curPhoto.id)) || await DB.get('files', curPhoto.id);
+  const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+  Object.assign(sr, { id: curPhoto.id, w: bmp.width, h: bmp.height, target: Math.min(SR_LIMIT, Math.max(bmp.width, bmp.height) * 2) });
+  bmp.close?.();
+}
+
 PANELS['Super Resolution'] = p => {
-  const [w, h] = engine.size;
-  const scale = srMode === 'x4' ? 4 : 2, k = Math.min(1, 4096 / (Math.max(w, h) * scale));
-  const bar = progressBar();
-  p.append(chips([['fast', 'Veloce ×2'], ['quality', 'Qualità ×2'], ['x4', 'Qualità ×4']], srMode, v => { srMode = v; renderPanel(); }),
-    note(`Risultato: ${Math.round(w * k * scale)} × ${Math.round(h * k * scale)} px` + (k < 1 ? ' (la foto viene prima ridotta: il limite di elaborazione è 4096 px)' : '')),
+  if (sr.id !== curPhoto?.id) { p.append(note('Lettura dimensioni originali…')); srDims().then(renderPanel).catch(e => toast(e.message)); return; }
+  const L = Math.max(sr.w, sr.h), k = sr.target / L, ow = Math.round(sr.w * k), oh = Math.round(sr.h * k), mp = ow * oh / 1e6;
+  const bar = progressBar(); bar.hidden = true;
+  const inp = el('input', { type: 'number', className: 'num', min: L + 1, max: SR_LIMIT, step: 1, value: sr.target });
+  inp.onchange = () => { sr.target = Math.max(L + 1, Math.min(SR_LIMIT, Math.round(+inp.value || L * 2))); renderPanel(); };
+  const plan = srPlan(sr.w, sr.h, sr.target), passes = plan.steps.filter(s => s.scale).map(s => '×' + s.scale);
+  p.append(note(`Originale: ${sr.w} × ${sr.h} px (${(sr.w * sr.h / 1e6).toFixed(1)} MP)`),
+    chips([[1.5, '×1,5'], [2, '×2'], [3, '×3'], [4, '×4']].filter(([f]) => L * f <= SR_LIMIT).map(([f, t]) => [Math.round(L * f), t]), sr.target,
+      v => { sr.target = +v; renderPanel(); }),
+    el('div', { className: 'row' }, el('label', { textContent: 'Lato lungo (px)' }), inp, el('span')),
+    note(`Risultato: ${ow} × ${oh} px (${mp.toFixed(1)} MP) · passaggi AI: ${passes.join(' + ') || '—'}`
+      + (mp > 100 ? ' · Molto pesante: il telefono potrebbe non avere memoria sufficiente.' : '')
+      + (Math.max(ow, oh) > engine.maxSize ? ` · L'editor di questo telefono arriva a ${engine.maxSize} px: verrà salvata subito anche una copia a piena risoluzione.` : '')),
+    actions(toggle('Modalità veloce', () => sr.fast, v => { sr.fast = v; }, true)),
     actions(btn(aiBusy ? 'Elaborazione…' : 'Migliora risoluzione', async () => {
       if (aiBusy) return; aiBusy = true; bar.hidden = false;
+      const t0 = Date.now();
       try {
-        const out = await superResolution(curSrc, { mode: srMode, onProgress: v => bar.set(v, Math.round(v * 100) + '%') });
+        const src = await photoSource(curPhoto, SR_LIMIT);
+        const out = await superResolution(src.canvas, { target: sr.target, fast: sr.fast, onProgress: v => {
+          const sec = (Date.now() - t0) / 1000, rest = v > 0.03 ? Math.round(sec / v - sec) : 0;
+          bar.set(v, Math.round(v * 100) + '%' + (rest ? ` · circa ${rest < 90 ? rest + ' s' : Math.round(rest / 60) + ' min'}` : ''));
+        } });
         await saveCurrent();
-        const rec = await addDerivedPhoto(out, srMode === 'x4' ? ' (SR ×4)' : ' (SR)');
+        const rec = await addDerivedPhoto(out, ` (SR ${out.width}px)`);
+        if (Math.max(out.width, out.height) > engine.maxSize)
+          await saveFile(new File([await DB.get('files', rec.id)], rec.file, { type: 'image/jpeg' }));
         toast('Creata una nuova foto con risoluzione migliorata');
         aiBusy = false; await loadIntoEditor(rec);
       } catch (e) { aiBusy = false; alert('Super Resolution: ' + e.message); console.error(e); renderPanel(); }
     }, 'primary')), bar,
-    note('Funziona offline sul telefono. Crea una copia della foto (come "Migliora" di Lightroom): l\'originale resta invariato. Con foto grandi può richiedere qualche minuto.'));
-  bar.hidden = true;
+    note('Usa la foto originale a piena risoluzione e un modello AI (ESRGAN) che ricostruisce i dettagli, non un semplice ingrandimento. Funziona offline. Crea una copia: l\'originale resta invariato. Con foto grandi servono diversi minuti.'));
 };
 
 PANELS['Profondità'] = p => {
@@ -822,10 +914,10 @@ PANELS['Profondità'] = p => {
 let showDepth = false;
 
 PANELS['Calibrazione'] = p => {
-  p.append(section('Ombre'), S('calSh', 'Tinta', -1, 1, 0.01, { bg: BG.tint }),
-    section('Primario rosso'), S('calRH', 'Tonalità', -1, 1, 0.01, { bg: 'linear-gradient(90deg,#f0f,#f00,#fa0)' }), S('calRS', 'Saturazione', -1, 1),
-    section('Primario verde'), S('calGH', 'Tonalità', -1, 1, 0.01, { bg: 'linear-gradient(90deg,#fd0,#0c0,#0dd)' }), S('calGS', 'Saturazione', -1, 1),
-    section('Primario blu'), S('calBH', 'Tonalità', -1, 1, 0.01, { bg: 'linear-gradient(90deg,#0dd,#00f,#a0f)' }), S('calBS', 'Saturazione', -1, 1),
+  p.append(group('Ombre', true, S('calSh', 'Tinta', -1, 1, 0.01, { bg: BG.tint })),
+    group('Primario rosso', true, S('calRH', 'Tonalità', -1, 1, 0.01, { bg: 'linear-gradient(90deg,#f0f,#f00,#fa0)' }), S('calRS', 'Saturazione', -1, 1)),
+    group('Primario verde', false, S('calGH', 'Tonalità', -1, 1, 0.01, { bg: 'linear-gradient(90deg,#fd0,#0c0,#0dd)' }), S('calGS', 'Saturazione', -1, 1)),
+    group('Primario blu', false, S('calBH', 'Tonalità', -1, 1, 0.01, { bg: 'linear-gradient(90deg,#0dd,#00f,#a0f)' }), S('calBS', 'Saturazione', -1, 1)),
     note('Classico look cinematografico: blu tonalità −, saturazione +; rosso tonalità +.'));
 };
 
@@ -932,9 +1024,7 @@ PANELS['Preset'] = p => {
   }, { neutral: 1 });
   p.append(search, chips(presetCats().map(c => [c, c]), presetCat, v => { presetCat = v; renderPanel(); }), amt, grid,
     actions(btn('Salva preset', savePreset), btn('Importa (.xmp, .lrtemplate, .json)', () => $('filePreset').click()),
-      btn('Esporta i miei', exportPresets), toggle('Gestisci i miei', () => presetManage, v => { presetManage = v; }, true),
-      btn('Copia impostazioni', copySettings), btn('Incolla', pasteSettings),
-      btn('Azzera tutto', () => { commit('Azzera'); params = defaults(); curPreset = null; renderPanel(); })),
+      btn('Esporta i miei', exportPresets), toggle('Gestisci i miei', () => presetManage, v => { presetManage = v; }, true)),
     presetManage ? note('Tocca uno dei tuoi preset per rinominarlo, spostarlo, aggiornarlo o eliminarlo.') : null);
   fill();
 };
@@ -1090,9 +1180,13 @@ PANELS['Info'] = p => {
     ['Obiettivo', t.lens], ['Data', t.dateOriginal || t.date], ['ISO', t.iso], ['Tempo', t.exposure ? (t.exposure < 1 ? `1/${Math.round(1 / t.exposure)}` : t.exposure) + ' s' : ''],
     ['Diaframma', t.fnumber ? 'f/' + t.fnumber.toFixed(1) : ''], ['Focale', t.focal ? Math.round(t.focal) + ' mm' : ''], ['Copyright', t.copyright]];
   for (const [k, v] of rows) if (v) p.append(el('div', { className: 'listrow' }, el('span', { className: 'dim', textContent: k }), el('span', { textContent: String(v) })));
+};
+
+/* Organizza: valutazione, contrassegno, etichetta, parole chiave */
+PANELS['Organizza'] = p => {
   const r = curPhoto; if (!r) return;
   const upd = () => { DB.put('photos', r); renderPanel(); };
-  p.append(section('Organizza'),
+  p.append(
     chips([[0, '–'], [1, '★'], [2, '★★'], [3, '★★★'], [4, '★★★★'], [5, '★★★★★']], r.rating, v => { r.rating = +v; upd(); }),
     chips([[1, '⚑ Scelta'], [0, 'Nessun contrassegno'], [-1, '✕ Rifiutata']], r.flag, v => { r.flag = +v; upd(); }),
     chips([['', 'Nessuna etichetta'], ['red', 'Rossa'], ['yellow', 'Gialla'], ['green', 'Verde'], ['blue', 'Blu'], ['purple', 'Viola']], r.label, v => { r.label = v; upd(); }),
@@ -1154,12 +1248,107 @@ async function exportImage() {
   redraw();
 }
 
+/* ---------- Menu ⋮ in alto ---------- */
+
+function openMenu() {
+  if (document.querySelector('.menu-wrap')) return;
+  const canPrev = prevEdits && prevEdits.id !== curPhoto?.id;
+  const items = [
+    ['⇩', 'Salva copia sul dispositivo', exportImage],
+    ['⚙', 'Opzioni di esportazione', () => openPanel('Esporta')],
+    null,
+    ['★', 'Organizza', () => openPanel('Organizza')],
+    ['◉', 'Visualizza opzioni', viewOptions],
+    null,
+    ['＋', 'Crea predefinito', savePreset],
+    ['⧉', 'Copia impostazioni', copySettings],
+    ['⎘', 'Incolla impostazioni', pasteSettings, !clipboard],
+    ['↺', 'Applica da precedente', applyPrevious, !canPrev],
+    null,
+    ['▤', 'Versioni', () => openPanel('Versioni')],
+    ['⏲', 'Cronologia', () => openPanel('Cronologia')],
+    ['ⓘ', 'Info foto', () => openPanel('Info')],
+    ['▶', 'Avvia presentazione', startSlideshow],
+  ];
+  const box = el('div', { className: 'menu' });
+  for (const it of items) {
+    if (!it) { box.append(el('hr')); continue; }
+    const [ic, label, fn, off] = it;
+    box.append(el('button', { disabled: !!off, onclick: () => { wrap.remove(); fn(); } }, el('span', { className: 'mi', textContent: ic }), label));
+  }
+  const wrap = el('div', { className: 'menu-wrap', onclick: e => { if (e.target === wrap) wrap.remove(); } }, box);
+  document.body.append(wrap);
+}
+function openPanel(name) { if (!loaded) return; curTab = name; renderTabs(); renderPanel(); }
+
+async function viewOptions() {
+  const o = appSettings, box = el('div', { className: 'checks one' });
+  const opt = (key, label) => {
+    const cb = el('input', { type: 'checkbox', checked: !!o[key] });
+    cb.onchange = () => { o[key] = cb.checked; saveAppSettings(); syncViewOpts(); redraw(); };
+    box.append(el('label', {}, cb, ' ' + label));
+  };
+  opt('viewHist', 'Istogramma'); opt('viewInfo', 'Informazioni sulla foto'); opt('viewClip', 'Evidenzia i tagli (rosso = luci bruciate, blu = ombre chiuse)');
+  await modal('Visualizza opzioni', box, ['Chiudi']);
+}
+function syncViewOpts() {
+  $('hist').hidden = !loaded || !appSettings.viewHist;
+  const ov = $('infoOv'); ov.hidden = !loaded || !appSettings.viewInfo;
+  if (ov.hidden || !curPhoto) return;
+  const t = exifData.tags, list = visiblePhotos(), i = list.findIndex(x => x.id === curPhoto.id);
+  const [w, h] = engine.size;
+  ov.textContent = [i >= 0 ? `${i + 1} di ${list.length}` : '',
+    [t.exposure ? (t.exposure < 1 ? `1/${Math.round(1 / t.exposure)}` : t.exposure) + ' s' : '', t.fnumber ? 'f/' + (+t.fnumber).toFixed(1).replace('.', ',') : '', t.iso ? 'ISO ' + t.iso : ''].filter(Boolean).join(' · '),
+    `${w} × ${h}`, curPhoto.taken ? new Date(curPhoto.taken).toLocaleString('it-IT') : ''].filter(Boolean).join('\n');
+}
+
+/* Applica le impostazioni della foto modificata prima di questa (esclusi ritaglio, maschere e ritocchi) */
+function applyPrevious() {
+  if (!prevEdits) return;
+  commit('Applica da precedente');
+  const keep = copyGroups(params, {}, LOCAL_GROUPS);
+  params = Object.assign(defaults(), clone(prevEdits.values), keep);
+  renderPanel(); toast('Impostazioni della foto precedente applicate');
+}
+function rememberPrevious() {
+  if (curPhoto && isEdited(params)) prevEdits = { id: curPhoto.id, values: clone(params) };
+}
+
+/* Presentazione a schermo intero delle foto visibili nella libreria, con le modifiche */
+async function startSlideshow() {
+  const list = visiblePhotos(); if (!list.length) return;
+  if (curPhoto) await saveCurrent();
+  let i = Math.max(0, list.findIndex(p => p.id === curPhoto?.id)), alive = true, timer = 0;
+  const img = el('img'), cap = el('div', { className: 'cap' });
+  const wrap = el('div', { className: 'slideshow' }, img, cap, el('div', { className: 'hint', textContent: 'Tocca per uscire' }));
+  document.body.append(wrap);
+  document.documentElement.requestFullscreen?.().catch(() => {});
+  const size = Math.round(Math.max(screen.width, screen.height) * Math.min(2, window.devicePixelRatio || 1));
+  const render = async rec => {
+    const src = await photoSource(rec, size * 1.5);
+    return URL.createObjectURL(await makeThumb(src.canvas, Object.assign(defaults(), rec.edits || {}), libEngine, undefined, size));
+  };
+  let next = render(list[i]);
+  const show = async () => {
+    if (!alive) return;
+    const url = await next.catch(() => null);
+    if (!alive) return;
+    if (url) { const old = img.src; img.src = url; if (old) URL.revokeObjectURL(old); }
+    cap.textContent = `${list[i].name} · ${i + 1} di ${list.length}`;
+    i = (i + 1) % list.length; next = render(list[i]);
+    timer = setTimeout(show, 3500);
+  };
+  wrap.onclick = () => { alive = false; clearTimeout(timer); wrap.remove(); if (img.src) URL.revokeObjectURL(img.src); if (document.fullscreenElement) document.exitFullscreen?.(); };
+  show();
+}
+
 /* ---------- Caricamento dalla libreria e salvataggio automatico ---------- */
 
 let curSrc = null, saveTimer = 0;
 
 /* Carica la foto nel motore; show = passa all'editor */
 async function loadIntoEditor(rec, show = true) {
+  if (show && curPhoto && curPhoto.id !== rec.id) rememberPrevious();
   const src = await photoSource(rec);
   curPhoto = rec; curSrc = src.canvas;
   fileName = rec.name;
@@ -1180,8 +1369,9 @@ async function loadIntoEditor(rec, show = true) {
   if (!show) return;
   view.scale = 1; view.x = view.y = 0;
   $('libraryView').hidden = true; $('editorView').hidden = false;
-  $('empty').hidden = true; $('hist').hidden = false; $('edTitle').textContent = rec.name;
-  renderTabs(); renderPanel(); syncButtons();
+  $('empty').hidden = true; $('edTitle').textContent = rec.name;
+  if (!TOOLS.some(t => t.subs?.includes(curTab))) curTab = menuTab;
+  renderTabs(); renderPanel(); syncButtons(); syncViewOpts();
 }
 const openPhoto = async id => { const rec = photos.find(p => p.id === id); if (rec) { toast('Apertura…'); await loadIntoEditor(rec); } };
 
@@ -1194,7 +1384,9 @@ async function saveCurrent() {
   if (!curPhoto) return;
   clearTimeout(saveTimer);
   const rec = curPhoto;
-  rec.edits = clone(params); rec.history = clone(history.undo.slice(-40)); rec.versions = clone(versions); rec.edited = Date.now();
+  const before = JSON.stringify(rec.edits || defaults());
+  rec.edits = clone(params); rec.history = clone(history.undo.slice(-40)); rec.versions = clone(versions);
+  if (JSON.stringify(rec.edits) !== before) rec.edited = isEdited(params) ? Date.now() : 0;
   await DB.put('photos', rec);
   const b = brushCanvases();
   await DB.put('thumbs', await makeThumb(curSrc, params, libEngine, { brushes: b.list, brushVer: b.ver }), rec.id);
@@ -1202,6 +1394,7 @@ async function saveCurrent() {
 }
 
 async function closeEditor() {
+  rememberPrevious();
   await saveCurrent();
   curPhoto = null; loaded = false;
   $('editorView').hidden = true; $('libraryView').hidden = false;
@@ -1210,7 +1403,7 @@ async function closeEditor() {
 
 /* Sostituisce l'immagine della foto (Super Resolution): crea una nuova foto nella libreria */
 async function addDerivedPhoto(canvas, suffix) {
-  const id = uid(), blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.95));
+  const id = uid(), blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.96));
   const rec = { ...clone(curPhoto), id, name: curPhoto.name + suffix, file: curPhoto.name + suffix + '.jpg', type: 'image/jpeg', raw: false,
     size: blob.size, hash: id, added: Date.now(), w: canvas.width, h: canvas.height, edits: clone(params), history: [], versions: [], edited: Date.now() };
   await DB.put('files', blob, id);
@@ -1243,6 +1436,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   $('fileWm').onchange = async e => { const f = e.target.files[0]; if (f) { exportOpts.wmImage = await createImageBitmap(f); renderPanel(); } e.target.value = ''; };
   $('btnBack').onclick = closeEditor;
   $('btnUndo').onclick = undo; $('btnRedo').onclick = redo;
+  $('btnReset').onclick = resetAll; $('btnMenu').onclick = openMenu;
   $('btnExport').onclick = exportImage;
   const cmp = $('btnCompare');
   const setCmp = v => { comparing = v; cmp.classList.toggle('on', v); redraw(); };

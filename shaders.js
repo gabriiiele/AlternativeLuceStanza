@@ -9,6 +9,11 @@ const SH_VERT = `
 attribute vec2 p; varying vec2 v;
 void main(){ v = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
 
+/* Vertice della pipeline principale: uTile seleziona il riquadro del risultato (esportazione a tasselli) */
+const SH_VERT_MAIN = `
+attribute vec2 p; varying vec2 v; uniform vec4 uTile;
+void main(){ v = uTile.xy + (p * 0.5 + 0.5) * uTile.zw; gl_Position = vec4(p, 0.0, 1.0); }`;
+
 const SH_COMMON = `
 precision highp float;
 varying vec2 v;
@@ -157,6 +162,7 @@ uniform float uTex, uClar, uDehaze;
 uniform vec4 uVigP;        // quantità, punto medio, rotondità, sfumatura
 uniform float uVigHi;
 uniform vec3 uGrainP;      // quantità, dimensione, ruvidità
+uniform vec4 uGrainRes;    // risultato a piena risoluzione (l, a) e risoluzione di questo disegno (l, a), in pixel
 uniform float uGlow, uHal, uCa;
 uniform vec4 uBlurA;       // quantità, tipo, x, y
 uniform vec4 uBlurB;       // dimensione, angolo, sfumatura, bokeh
@@ -166,13 +172,26 @@ uniform float uLutAmt, uLutSize;
 uniform vec4 uMk[40];      // 8 maschere x 5 vec4
 uniform float uShowMask;
 uniform vec4 uOverlay;
+uniform float uClip;       // evidenzia i tagli di ombre e luci
 
 vec3 toLin(vec3 c){ return pow(max(c, 0.0), vec3(2.2)); }
 vec3 toSrgb(vec3 c){ return pow(max(c, 0.0), vec3(1.0 / 2.2)); }
-float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+// hash senza sin(): stabile anche con coordinate grandi sulle GPU dei telefoni
+float hash(vec2 p){ vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 float vnoise(vec2 p){
   vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+/* Campo di grana (deviazione circa 1): due reticoli ruotati per evitare la griglia,
+   più un'ottava larga che crea i grumi irregolari (ruvidità) */
+float grainField(vec2 q, float rough){
+  vec2 q2 = mat2(0.8, -0.6, 0.6, 0.8) * q * 1.13 + 17.31;
+  vec2 q3 = mat2(0.28, 0.96, -0.96, 0.28) * q * 0.87 + 5.17;
+  float fine = (vnoise(q) + vnoise(q2) + vnoise(q3) - 1.5) * 2.4;
+  float clump = (vnoise(q * 0.38 + 41.7) - 0.5) * 3.4;
+  float n = mix(fine, fine * 0.75 + clump * 0.75, rough);
+  return sign(n) * pow(abs(n), 1.0 - 0.3 * rough);
 }
 
 vec2 srcUV(vec2 o){
@@ -209,6 +228,25 @@ float curveAt(float x, int ch){
 
 void main(){
   vec2 uv = srcUV(v);
+
+  // --- grana, prima parte: il campo di grana deforma e ammorbidisce leggermente l'immagine,
+  //     così i dettagli si "sciolgono" nella grana invece di restarle sotto ---
+  float gAmt = uGrainP.x, gN = 0.0, gCell = 1.0;
+  if (gAmt > 0.0) {
+    vec2 gpx = v * uGrainRes.xy;                                     // pixel del risultato a piena risoluzione
+    gCell = max(uGrainP.y, 0.3) * sqrt(uGrainRes.x * uGrainRes.y) / 1650.0;
+    float pxFull = uGrainRes.y / uGrainRes.w;                        // pixel pieni per pixel disegnato
+    gN = grainField(gpx / gCell, uGrainP.z);
+    // in anteprima ridotta la grana più fine di un pixel diventa rumore per pixel, attenuato come in una riduzione reale
+    float sub = smoothstep(0.6, 1.2, pxFull / gCell);
+    if (sub > 0.0) {
+      vec2 rp = floor(v * uGrainRes.zw);
+      float wn = (hash(rp) + hash(rp + 71.3) + hash(rp + 19.1) - 1.5) * 2.0;
+      gN = mix(gN, wn * min(1.0, gCell / pxFull) * 1.2, sub);
+    }
+    vec2 d = vec2(vnoise(gpx / gCell * 0.8 + 3.7), vnoise(gpx / gCell * 0.8 + 11.3)) - 0.5;
+    uv += d * gCell * gAmt * (0.5 + uGrainP.z) * uTexel;
+  }
   if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) { gl_FragColor = vec4(0.16, 0.16, 0.16, 1.0); return; }
   vec2 ic = vec2(uv.x, 1.0 - uv.y);
 
@@ -260,6 +298,11 @@ void main(){
       }
       c = acc / ws;
     }
+  }
+
+  if (gAmt > 0.0) {
+    float soft = gAmt * clamp(0.2 + (uGrainP.y - 1.0) * 0.35, 0.1, 0.8);
+    c = mix(c, ring(uv, gCell * 0.6 * uTexel.y), soft);
   }
 
   // --- riduzione rumore luminanza e colore ---
@@ -419,13 +462,18 @@ void main(){
   }
 
   // --- grana (quantità, dimensione, ruvidità) ---
-  if (uGrainP.x > 0.0) {
-    vec2 gp = v * vec2(uOutAspect, 1.0) * (900.0 / max(uGrainP.y, 0.3));
-    float n = mix(vnoise(gp), hash(floor(gp)), uGrainP.z) - 0.5;
-    c += n * uGrainP.x * 0.25 * (0.3 + 0.7 * (1.0 - abs(luma(c) * 2.0 - 1.0)));
+  // grana monocromatica, più visibile nei mezzitoni e nelle ombre, quasi nulla nei neri e bianchi puri (come la pellicola)
+  if (gAmt > 0.0) {
+    float lg2 = luma(clamp(c, 0.0, 1.0));
+    float wg = pow(clamp(4.0 * lg2 * (1.0 - lg2), 0.0, 1.0), 0.55) * (1.15 - 0.35 * lg2);
+    c += gN * gAmt * 0.12 * wg;
   }
 
   c = clamp(c, 0.0, 1.0);
+  if (uClip > 0.5) {
+    if (max(c.r, max(c.g, c.b)) > 0.998) c = vec3(1.0, 0.15, 0.15);
+    else if (max(c.r, max(c.g, c.b)) < 0.004) c = vec3(0.2, 0.45, 1.0);
+  }
   if (uShowMask >= 0.0) c = mix(c, uOverlay.rgb, showW * uOverlay.a);
   if (uPCShow >= 0.0) c = mix(vec3(luma(c) * 0.5), c, pcSel);
   gl_FragColor = vec4(c, 1.0);

@@ -31,15 +31,18 @@
   <header class="topbar">
     <button id="btnBack" class="ibtn" title="Libreria">‹</button>
     <span id="edTitle" class="title"></span>
-    <button id="btnUndo" class="ibtn" disabled>↶</button>
-    <button id="btnRedo" class="ibtn" disabled>↷</button>
+    <button id="btnUndo" class="ibtn" title="Annulla" disabled>↶</button>
+    <button id="btnRedo" class="ibtn" title="Ripeti" disabled>↷</button>
+    <button id="btnReset" class="ibtn" title="Ripristina tutto" disabled>⟲</button>
     <button id="btnCompare" class="ibtn" title="Tieni premuto per vedere l'originale" disabled>◐</button>
-    <button id="btnExport" class="ibtn primary" title="Esporta" disabled>⇪</button>
+    <button id="btnExport" class="ibtn" title="Salva copia sul dispositivo" disabled>⇩</button>
+    <button id="btnMenu" class="ibtn" title="Menu">⋮</button>
   </header>
   <main id="stage">
     <canvas id="view"></canvas>
     <canvas id="ov"></canvas>
     <canvas id="hist" width="120" height="56" hidden></canvas>
+    <div id="infoOv" hidden></div>
     <div id="empty"></div>
   </main>
   <nav id="tabs" class="subtabs"></nav>

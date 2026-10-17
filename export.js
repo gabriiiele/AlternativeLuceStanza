@@ -198,7 +198,7 @@ function exportSize(w, h, o) {
   else if (o.sizeMode === 'w') k = v / w;
   else if (o.sizeMode === 'h') k = v / h;
   else if (o.sizeMode === 'pct') k = v / 100;
-  k = Math.min(k, 4096 / Math.max(w, h));
+  k = Math.min(k, 16384 / Math.max(w, h));   // limite dei canvas del browser
   return [Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))];
 }
 
@@ -217,14 +217,11 @@ let exportCounter = 0;
 async function buildExport(p, opts = exportOpts) {
   const [fw, fh] = engine.outputSize(p);
   const [w, h] = exportSize(fw, fh, opts);
-  engine.render(effectiveParams(p), w, h, { brushes: brushCanvases().list, brushVer: brushCanvases().ver });
+  const b = brushCanvases();
+  const canvas = engine.renderToCanvas(effectiveParams(p), w, h, { brushes: b.list, brushVer: b.ver });
   const fmt = opts.fmt;
-  const needs2d = opts.outSharp !== 'none' || opts.wm !== 'none' || fmt === 'image/tiff';
-  let canvas = engine.canvas;
-  if (needs2d) {
-    canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+  if (opts.outSharp !== 'none' || opts.wm !== 'none') {
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(engine.canvas, 0, 0);
     if (opts.outSharp !== 'none') {
       const img = ctx.getImageData(0, 0, w, h); outputSharpen(img, opts.outSharp, opts.outSharpType); ctx.putImageData(img, 0, 0);
     }

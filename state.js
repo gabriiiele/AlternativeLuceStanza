@@ -55,6 +55,9 @@ const defaults = () => ({
 
 const clone = o => JSON.parse(JSON.stringify(o));
 
+/* true se le modifiche differiscono dai valori predefiniti */
+const isEdited = p => !!p && JSON.stringify({ ...defaults(), ...p }) !== JSON.stringify(defaults());
+
 /* Gruppi per copia selettiva, salvataggio preset e cronologia */
 const GROUPS = {
   'Luce': ['exp', 'contrast', 'hi', 'sh', 'wh', 'bl'],
