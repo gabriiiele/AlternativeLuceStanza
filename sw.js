@@ -1,4 +1,4 @@
-const CACHE = 'luce-stanza-v5';
+const CACHE = 'luce-stanza-v6';
 const FILES = ['./', 'index.html', 'style.css', 'manifest.json', 'icon.svg', 'shaders.js', 'engine.js', 'profiles.js', 'presets.js',
   'state.js', 'db.js', 'tools.js', 'export.js', 'ai.js', 'app.js', 'library.js',
   'vendor/tf.min.js', 'vendor/anthropic-sdk.js',

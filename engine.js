@@ -10,8 +10,8 @@ const HSL_CENTERS = [0, 30, 60, 120, 180, 230, 275, 320];
 
 /* ---------- Curve ---------- */
 
-/* Curva monotona (Fritsch–Carlson) -> tabella da 256 valori in 0..1 */
-function curveLUT(pts) {
+/* Curva monotona (Fritsch–Carlson) -> tabella da N valori in 0..1 */
+function curveLUT(pts, N = 256) {
   const P = [...pts].sort((a, b) => a[0] - b[0]);
   const n = P.length, d = [], m = [];
   for (let i = 0; i < n - 1; i++) d.push((P[i + 1][1] - P[i][1]) / Math.max(P[i + 1][0] - P[i][0], 1e-6));
@@ -22,9 +22,9 @@ function curveLUT(pts) {
     const a = m[i] / d[i], b = m[i + 1] / d[i], s = a * a + b * b;
     if (s > 9) { const t = 3 / Math.sqrt(s); m[i] = t * a * d[i]; m[i + 1] = t * b * d[i]; }
   }
-  const out = new Float32Array(256);
-  for (let k = 0; k < 256; k++) {
-    const x = k / 255;
+  const out = new Float32Array(N);
+  for (let k = 0; k < N; k++) {
+    const x = k / (N - 1);
     let y;
     if (x <= P[0][0]) y = P[0][1];
     else if (x >= P[n - 1][0]) y = P[n - 1][1];
@@ -40,11 +40,11 @@ function curveLUT(pts) {
 }
 
 /* Curva parametrica: ombre, scuri, chiari, alteluci con tre punti di divisione */
-function parametricLUT(p) {
-  const out = new Float32Array(256);
+function parametricLUT(p, N = 256) {
+  const out = new Float32Array(N);
   const s = [0, p.pcS1, p.pcS2, p.pcS3, 1], amt = [p.pcSh, p.pcDk, p.pcLt, p.pcHi];
-  for (let k = 0; k < 256; k++) {
-    const x = k / 255;
+  for (let k = 0; k < N; k++) {
+    const x = k / (N - 1);
     let d = 0;
     for (let r = 0; r < 4; r++) {
       if (!amt[r]) continue;
@@ -142,8 +142,11 @@ class Engine {
     this.main = this.program(SH_MAIN, SH_VERT_MAIN);
     this.retouch = this.program(SH_RETOUCH);
     this.maskP = this.program(SH_MASK);
+    this.blurP = this.program(SH_BLUR);
+    this.units = gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS);
     this.imgTex = this.makeTex();
     this.curveTex = this.makeTex();
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     this.lutTex = this.makeTex(); this.blank(this.lutTex);
     this.maskTex = [this.makeTex(), this.makeTex()]; this.maskTex.forEach(t => this.blank(t));
     this.brushTex = this.makeTex(); this.blank(this.brushTex);
@@ -236,7 +239,7 @@ class Engine {
     this.maskRes = [Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))];
     this.mkA = this.target(...this.maskRes); this.mkB = this.target(...this.maskRes);
     this.maskTex = [this.mkA.tex, this.mkB.tex];
-    this.srcTex = this.imgTex; this.rtKey = ''; this.mkKey = 'x';
+    this.srcTex = this.imgTex; this.rtKey = ''; this.mkKey = 'x'; this.blurDirty = true;
     this.clearDepth();
   }
 
@@ -265,6 +268,7 @@ class Engine {
     const key = JSON.stringify(spots);
     if (key === this.rtKey) return;
     this.rtKey = key;
+    this.blurDirty = true;
     if (!spots.length) { this.srcTex = this.imgTex; this.mkKey = 'x'; return; }
     const gl = this.gl, [w, h] = this.size;
     if (!this.rtA) { this.rtA = this.target(w, h); this.rtB = this.target(w, h); }
@@ -332,18 +336,48 @@ class Engine {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
+  /* Curve combinate a 16 bit (1024 voci): riga 0 byte alti, riga 1 byte bassi */
   setCurves(p) {
-    const P = parametricLUT(p), M = curveLUT(p.curve), R = curveLUT(p.cr), G = curveLUT(p.cg), B = curveLUT(p.cb);
-    const at = (lut, y) => lut[Math.round(Math.min(1, Math.max(0, y)) * 255)];
-    const data = new Uint8Array(256 * 4);
-    for (let i = 0; i < 256; i++) {
+    const N = 1024, key = JSON.stringify([p.curve, p.cr, p.cg, p.cb, p.pcSh, p.pcDk, p.pcLt, p.pcHi, p.pcS1, p.pcS2, p.pcS3]);
+    if (key === this.curveKey) return;
+    this.curveKey = key;
+    const P = parametricLUT(p, N), M = curveLUT(p.curve, N), R = curveLUT(p.cr, N), G = curveLUT(p.cg, N), B = curveLUT(p.cb, N);
+    const at = (lut, y) => {   // interpolazione lineare nella tabella
+      const f = Math.min(1, Math.max(0, y)) * (N - 1), i = Math.floor(f), t = f - i;
+      return lut[i] + ((lut[Math.min(i + 1, N - 1)] ?? lut[i]) - lut[i]) * t;
+    };
+    const data = new Uint8Array(N * 2 * 4);
+    for (let i = 0; i < N; i++) {
       const m = at(M, P[i]);
-      data.set([at(R, m), at(G, m), at(B, m), 1].map(x => Math.round(x * 255)), i * 4);
+      [at(R, m), at(G, m), at(B, m)].forEach((x, k) => {
+        const v = Math.round(Math.min(1, Math.max(0, x)) * 65535);
+        data[i * 4 + k] = v >> 8; data[(N + i) * 4 + k] = v & 255;
+      });
+      data[i * 4 + 3] = data[(N + i) * 4 + 3] = 255;
     }
     const gl = this.gl;
     gl.bindTexture(gl.TEXTURE_2D, this.curveTex);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, N, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+  }
+
+  /* Livelli sfocati della sorgente (texture, chiarezza, foschia, bagliore): ricalcolati solo quando cambia l'immagine o i ritocchi */
+  updateBlurs() {
+    if (!this.blurDirty) return;
+    this.blurDirty = false;
+    const gl = this.gl, [sw, sh] = this.size, u = this.use(this.blurP);
+    (this.blurT || []).flat().forEach(t => this.freeTarget(t));
+    this.blurT = [0.0025, 0.012, 0.04].map(frac => {
+      const k = Math.max(1, frac * sh / 2.5), w = Math.max(1, Math.ceil(sw / k)), h = Math.max(1, Math.ceil(sh / k));
+      const a = this.target(w, h), b = this.target(w, h);
+      gl.viewport(0, 0, w, h);
+      this.bind(0, this.srcTex, u.uImg); gl.uniform2fv(u.uDir, [1 / w, 0]);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, a.fb); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      this.bind(0, a.tex, u.uImg); gl.uniform2fv(u.uDir, [0, 1 / h]);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, b.fb); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      return [b, a];
+    });
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
   /* Dimensioni in pixel del risultato a piena risoluzione */
@@ -358,6 +392,7 @@ class Engine {
     const gl = this.gl, [sw, sh] = this.size, t = opts.tile;
     this.updateRetouch(p.spots);
     this.updateMasks(p.masks, opts.brushes || [], opts.brushVer || '');
+    this.updateBlurs();
     const u = this.use(this.main);
     if (t) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, t.fb);
@@ -372,6 +407,8 @@ class Engine {
     this.setCurves(p);
     this.bind(0, this.srcTex, u.uImg); this.bind(1, this.curveTex, u.uCurve); this.bind(2, this.lutTex, u.uLut);
     this.bind(3, this.maskTex[0], u.uMask0); this.bind(4, this.maskTex[1], u.uMask1); this.bind(5, this.depthTex, u.uDepth);
+    this.bind(6, this.blurT[0][0].tex, u.uBlur1); this.bind(7, this.blurT[1][0].tex, u.uBlur2);
+    if (this.units > 8) this.bind(8, this.blurT[2][0].tex, u.uBlur3); else gl.uniform1i(u.uBlur3, 7);   // GPU con 8 unità: riusa il livello medio
 
     const G = this.lastGeo = geoInfo(p.geo, sw, sh, !!opts.full);
     const f1 = (n, x) => gl.uniform1f(u[n], x), f2 = (n, a) => gl.uniform2fv(u[n], a);

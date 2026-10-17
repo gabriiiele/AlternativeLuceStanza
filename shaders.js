@@ -49,6 +49,19 @@ vec3 hueColor(float h){ return hsl2rgb(vec3(h, 1.0, 0.5)); }
 float hueDist(float a, float b){ float d = abs(a - b); return min(d, 360.0 - d); }
 `;
 
+/* ---------- Sfocatura gaussiana separabile (13 campioni, sigma 2,5 campioni) per i livelli sfocati ---------- */
+const SH_BLUR = SH_COMMON + `
+uniform sampler2D uImg;
+uniform vec2 uDir;
+void main(){
+  vec3 s = vec3(0.0); float ws = 0.0;
+  for (int i = -6; i <= 6; i++) {
+    float w = exp(-float(i * i) / 12.5);
+    s += texture2D(uImg, v + uDir * float(i)).rgb * w; ws += w;
+  }
+  gl_FragColor = vec4(s / ws, 1.0);
+}`;
+
 /* ---------- Ritocco: correggi / clona / occhi rossi (fino a 16 punti per passata) ---------- */
 const SH_RETOUCH = SH_COMMON + `
 uniform sampler2D uImg;
@@ -134,6 +147,7 @@ void main(){
 /* ---------- Pipeline principale ---------- */
 const SH_MAIN = SH_COMMON + `
 uniform sampler2D uImg, uCurve, uLut, uMask0, uMask1, uDepth;
+uniform sampler2D uBlur1, uBlur2, uBlur3;   // sorgente sfocata (gaussiana) a ~0,25%, ~1,2%, ~4% dell'altezza
 uniform vec2 uTexel;
 uniform float uSa, uOutAspect;
 // geometria
@@ -206,7 +220,7 @@ vec2 srcUV(vec2 o){
   q *= 1.0 + uDist * r2 * 0.3;
   return vec2(q.x / uSa, q.y) + 0.5;
 }
-vec3 tex(vec2 uv){ return texture2D(uImg, uv).rgb; }
+vec3 tex(vec2 uv){ return texture2D(uImg, uv, -0.4).rgb; }   // leggero bias: anteprima ridotta più nitida
 vec3 ring(vec2 uv, float r){
   vec2 o = vec2(r / uSa, r), d = o * 0.7071;
   vec3 s = tex(uv);
@@ -221,9 +235,16 @@ vec3 applyLut(vec3 c){
   float x = clamp(c.r, 0.0, 1.0) * (n - 1.0) + 0.5, y = (clamp(c.g, 0.0, 1.0) * (n - 1.0) + 0.5) / n;
   return mix(texture2D(uLut, vec2((s0 * n + x) / (n * n), y)).rgb, texture2D(uLut, vec2((s1 * n + x) / (n * n), y)).rgb, f);
 }
+/* Curve a 16 bit: 1024 voci, riga alta = byte alto, riga bassa = byte basso; interpolazione manuale */
+vec3 curveEntry(float i){
+  float x = (i + 0.5) / 1024.0;
+  return (texture2D(uCurve, vec2(x, 0.25)).rgb * 65280.0 + texture2D(uCurve, vec2(x, 0.75)).rgb * 255.0) / 65535.0;
+}
 float curveAt(float x, int ch){
-  vec4 t = texture2D(uCurve, vec2(clamp(x, 0.0, 1.0) * 0.99609375 + 0.001953125, 0.5));
-  return ch == 0 ? t.r : ch == 1 ? t.g : t.b;
+  float f = clamp(x, 0.0, 1.0) * 1023.0, i0 = floor(f), t = f - i0;
+  vec3 a = curveEntry(i0), b = curveEntry(min(i0 + 1.0, 1023.0));
+  vec3 r = mix(a, b, t);
+  return ch == 0 ? r.r : ch == 1 ? r.g : r.b;
 }
 
 void main(){
@@ -234,7 +255,7 @@ void main(){
   float gAmt = uGrainP.x, gN = 0.0, gCell = 1.0;
   if (gAmt > 0.0) {
     vec2 gpx = v * uGrainRes.xy;                                     // pixel del risultato a piena risoluzione
-    gCell = max(uGrainP.y, 0.3) * sqrt(uGrainRes.x * uGrainRes.y) / 1650.0;
+    gCell = max(uGrainP.y, 0.3) * sqrt(uGrainRes.x * uGrainRes.y) / 2000.0;
     float pxFull = uGrainRes.y / uGrainRes.w;                        // pixel pieni per pixel disegnato
     gN = grainField(gpx / gCell, uGrainP.z);
     // in anteprima ridotta la grana più fine di un pixel diventa rumore per pixel, attenuato come in una riduzione reale
@@ -244,8 +265,12 @@ void main(){
       float wn = (hash(rp) + hash(rp + 71.3) + hash(rp + 19.1) - 1.5) * 2.0;
       gN = mix(gN, wn * min(1.0, gCell / pxFull) * 1.2, sub);
     }
+    // granuli nitidi: componente per pixel pieno (se la grana non è già sotto il pixel disegnato)
+    vec2 fp = floor(gpx);
+    float crisp = (hash(fp) + hash(fp + 53.7) - 1.0) * 2.45;
+    gN = mix(gN * 0.8 + crisp * 0.6, gN, sub);
     vec2 d = vec2(vnoise(gpx / gCell * 0.8 + 3.7), vnoise(gpx / gCell * 0.8 + 11.3)) - 0.5;
-    uv += d * gCell * gAmt * (0.5 + uGrainP.z) * uTexel;
+    uv += d * gCell * gAmt * (0.2 + 0.5 * uGrainP.z) * uTexel;
   }
   if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) { gl_FragColor = vec4(0.16, 0.16, 0.16, 1.0); return; }
   vec2 ic = vec2(uv.x, 1.0 - uv.y);
@@ -300,10 +325,7 @@ void main(){
     }
   }
 
-  if (gAmt > 0.0) {
-    float soft = gAmt * clamp(0.2 + (uGrainP.y - 1.0) * 0.35, 0.1, 0.8);
-    c = mix(c, ring(uv, gCell * 0.6 * uTexel.y), soft);
-  }
+  if (gAmt > 0.0 && uGrainP.y > 1.0) c = mix(c, texture2D(uBlur1, uv).rgb, gAmt * min((uGrainP.y - 1.0) * 0.2, 0.4));   // grana grossa: ammorbidisce
 
   // --- riduzione rumore luminanza e colore ---
   float nrL = clamp(uNrL.x + L3.z, 0.0, 1.0), nrC = clamp(uNrC.x + L3.w, 0.0, 1.0);
@@ -331,9 +353,8 @@ void main(){
   if (shp > 0.0) {
     vec2 o = uTexel * uSharpP.y;
     vec3 a1 = tex(uv + vec2(o.x, 0.0)), a2 = tex(uv - vec2(o.x, 0.0)), a3 = tex(uv + vec2(0.0, o.y)), a4 = tex(uv - vec2(0.0, o.y));
-    vec3 hp = c - (a1 + a2 + a3 + a4) * 0.25;
     float lim = mix(0.03, 1.0, uSharpP.z);
-    hp = clamp(hp, -lim, lim);
+    float hp = clamp(luma(c) - luma(a1 + a2 + a3 + a4) * 0.25, -lim, lim);   // solo luminanza, come Lightroom: niente rumore di colore
     float edge = abs(luma(a1) - luma(a2)) + abs(luma(a3) - luma(a4));
     float mk = uSharpP.w > 0.0 ? smoothstep(uSharpP.w * 0.12, uSharpP.w * 0.12 + 0.04, edge) : 1.0;
     c += hp * shp * 1.5 * mk;
@@ -341,12 +362,17 @@ void main(){
 
   // --- texture, chiarezza, foschia ---
   float tx = uTex + L2.z, cl = uClar + L2.w, dz = uDehaze + L3.x;
-  if (tx != 0.0) c += (c - ring(uv, 0.0025)) * tx * 1.2;
-  if (cl != 0.0) c += (c - (ring(uv, 0.01) + ring(uv, 0.02)) * 0.5) * cl * (0.4 + 0.6 * (1.0 - abs(luma(c) * 2.0 - 1.0)));
+  // contrasto locale solo sulla luminanza, rispetto a vere sfocature gaussiane (niente aloni né blocchi di colore del JPEG)
+  if (tx != 0.0) c += (luma(c) - luma(texture2D(uBlur1, uv).rgb)) * tx * 1.6;
+  if (cl != 0.0) {
+    float y = luma(c), d = y - luma(texture2D(uBlur2, uv).rgb);
+    c += d * cl * 1.3 * (0.35 + 0.65 * (1.0 - abs(clamp(y, 0.0, 1.0) * 2.0 - 1.0)));
+  }
   if (dz > 0.0) {
-    vec3 b = ring(uv, 0.02);
-    float t = max(1.0 - dz * 0.8 * min(b.r, min(b.g, b.b)), 0.2);
-    c = (c - 0.9 * (1.0 - t)) / t;
+    vec3 b = texture2D(uBlur3, uv).rgb;
+    float t = max(1.0 - dz * 0.8 * min(b.r, min(b.g, b.b)), 0.25), y = max(luma(c), 1e-4);
+    c *= max((y - 0.9 * (1.0 - t)) / t, 0.0) / y;              // toglie la foschia sulla luminanza mantenendo i rapporti di colore
+    c = mix(vec3(luma(c)), c, 1.0 + dz * 0.2);
   } else if (dz < 0.0) c = mix(c, vec3(0.8), -dz * 0.3);
 
   // --- rimozione frange viola / verdi (vicino ai bordi contrastati) ---
@@ -362,7 +388,7 @@ void main(){
 
   vec3 glowSrc = vec3(0.0); float halSrc = 0.0;
   if (uGlow > 0.0 || uHal > 0.0) {
-    vec3 gb = (ring(uv, 0.03) + ring(uv, 0.06)) * 0.5;
+    vec3 gb = (texture2D(uBlur2, uv).rgb + texture2D(uBlur3, uv).rgb * 2.0) / 3.0;
     glowSrc = max(gb - 0.55, 0.0);
     halSrc = max(luma(gb) - 0.6, 0.0);
   }
@@ -476,5 +502,7 @@ void main(){
   }
   if (uShowMask >= 0.0) c = mix(c, uOverlay.rgb, showW * uOverlay.a);
   if (uPCShow >= 0.0) c = mix(vec3(luma(c) * 0.5), c, pcSel);
+  // dithering: elimina gli scalini nei gradienti (cieli, ombre) quando il risultato torna a 8 bit
+  c += (hash(gl_FragCoord.xy) + hash(gl_FragCoord.xy + 37.1) - 1.0) / 255.0;
   gl_FragColor = vec4(c, 1.0);
 }`;

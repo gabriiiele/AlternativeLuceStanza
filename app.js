@@ -539,7 +539,7 @@ PANELS['B&N'] = p => {
 PANELS['Effetti'] = p => {
   p.append(group('Presenza', true, S('texture', 'Texture', -1, 1), S('clarity', 'Chiarezza', -1, 1), S('dehaze', 'Rimozione foschia', -1, 1)),
     group('Granulosità', true, S('grain', 'Quantità', 0, 1), S('grainSize', 'Dimensione', 0.5, 3, 0.01, { dec: 2 }), S('grainRough', 'Ruvidità', 0, 1),
-      note('La grana deforma e ammorbidisce leggermente i dettagli, come la pellicola. Valutala ingrandendo al 100%.')),
+      note('La grana spezza leggermente i dettagli come la pellicola; con dimensione alta li ammorbidisce. Valutala ingrandendo al 100%.')),
     group('Vignettatura', false, S('vig', 'Quantità', -1, 1), S('vigMid', 'Punto medio', 0, 1), S('vigRound', 'Rotondità', -1, 1),
       S('vigFeather', 'Sfumatura', 0, 1), S('vigHi', 'Alte luci', 0, 1)),
     group('Creativi', false, S('fade', 'Dissolvenza neri', 0, 1), S('glow', 'Bagliore', 0, 1), S('halation', 'Alone pellicola', 0, 1),

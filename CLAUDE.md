@@ -23,6 +23,8 @@ Uso solo personale: niente reverse engineering o copia di codice/dati Adobe, sol
   (WebGL2); esportazione a tasselli con `engine.renderToCanvas`. Shader principale usa `SH_VERT_MAIN` con `uTile`.
 - Grana: definita in pixel del risultato a piena risoluzione (`uGrainRes`), deforma/ammorbidisce l'immagine e poi si somma
   pesata sui mezzitoni; in anteprima ridotta viene attenuata come in una riduzione reale.
+- Qualità: texture/chiarezza/nitidezza agiscono solo sulla luminanza (niente rumore di colore del JPEG); usano livelli
+  sfocati gaussiani precalcolati (`updateBlurs`, `uBlur1..3`), non campionamenti sparsi. Curve a 16 bit (1024 voci), dithering finale.
 - Interfaccia: `slider()` si regola solo trascinando in orizzontale (relativo), doppio tocco = neutro, tocco sul numero = valore preciso;
   `group()` = sezione richiudibile. Menu ⋮ (`openMenu`) apre i pannelli fuori barra (Esporta, Organizza, Versioni, Cronologia, Info).
 - Tutti gli script sono classici e condividono lo scope globale; ordine in `index.html`.
