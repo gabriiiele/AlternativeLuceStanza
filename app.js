@@ -201,7 +201,7 @@ const S = (k, label, min, max, step = 0.01, o = {}) =>
 /* ui = true: interruttore dell'interfaccia, non entra nella cronologia */
 function toggle(label, get, set, ui = false) {
   // nella libreria si ridisegna la libreria, nell'editor il pannello aperto
-  return btn(label, () => { if (!ui) commit(label); set(!get()); if ($('editorView').hidden) renderLibrary(); else renderPanel(); }, get() ? 'on' : '');
+  return btn(label, () => { if (!ui) commit(label); set(!get()); if ($('editorView').hidden) renderLibrary(); else renderPanel(); }, 'tog' + (get() ? ' on' : ''));
 }
 
 /* Finestra modale; ritorna una Promise con il pulsante scelto */
@@ -1501,7 +1501,7 @@ async function saveFiles(files) {
 function saveExportOpts() { try { localStorage.setItem('exportOpts', JSON.stringify({ ...exportOpts, wmImage: null })); } catch { /* spazio pieno */ } }
 
 /* Ritaglio scelto per ogni formato (per foto, nella cronologia): params.frames[id] = { x, y (centro), z (zoom), fit } */
-let socialCur = null;
+let socialCur = null, socialPlat = null;
 const socialFit = (id, p = params) => p.frames?.[id]?.fit || exportOpts.fit;
 /* Riquadro del formato sulla foto finita (0..1). Con "bordi"/"sfondo sfocato" il riquadro contiene tutta la foto */
 function frameRect(p, id) {
@@ -1523,82 +1523,69 @@ function socialPreview(id, maxSide = 220) {
   const k = maxSide / Math.max(W, H), w = Math.max(8, Math.round(W * k)), h = Math.max(8, Math.round(H * k));
   return t.long ? renderFinal(params, w, h) : composeFrame(params, fw, fh, w, h, socialFit(id), exportOpts.padColor, id);
 }
-let previewTimer = 0;
-function refreshSocialPreviews(only) {
-  clearTimeout(previewTimer);
-  previewTimer = setTimeout(() => {
-    for (const box of document.querySelectorAll('#panel .sprev')) {
-      if (only && box.dataset.id !== only) continue;
-      const c = socialPreview(box.dataset.id), old = box.querySelector('canvas');
-      c.className = 'pv'; old ? old.replaceWith(c) : box.prepend(c);
-    }
-    redraw();
-  }, only ? 120 : 30);
-}
-
 PANELS['Social'] = p => {
-  const o = exportOpts, sel = [...new Set(o.socialSel || [])].filter(id => SOCIAL.some(t => t.id === id));
-  if (!sel.includes(socialCur)) socialCur = sel.find(id => !SOCIAL.find(t => t.id === id).long) || sel[0] || null;
   const [fw, fh] = loaded ? engine.outputSize(params) : [1, 1];
-  const toggleSel = id => { const i = sel.indexOf(id); i >= 0 ? sel.splice(i, 1) : sel.push(id); o.socialSel = sel; if (i < 0) socialCur = id; saveExportOpts(); renderPanel(); };
+  const groups = [...new Set(SOCIAL.map(t => t.group))];
+  const cur = SOCIAL.find(t => t.id === socialCur);
+  const thumb = (box, make) => setTimeout(() => { if (!loaded) return; const c = make(); c.className = 'pv'; box.prepend(c); redraw(); }, 30);
+  const go = () => { renderPanel(); $('panel').scrollTop = 0; };   // ogni passo riparte dall'alto
+  const back = (label, fn) => el('button', { className: 'back', onclick: fn }, '‹ ' + label);
 
-  // anteprime dei formati scelti: tocca per modificarne il taglio
-  if (sel.length) {
-    const strip = el('div', { className: 'sstrip' });
-    for (const id of sel) {
-      const t = SOCIAL.find(x => x.id === id);
-      const card = el('button', { className: 'sprev' + (id === socialCur ? ' on' : ''), onclick: () => { socialCur = id; renderPanel(); } },
-        el('span', { textContent: `${t.group} · ${t.name}` }));
-      card.dataset.id = id; strip.append(card);
-    }
-    p.append(section('Anteprima'), strip);
-    refreshSocialPreviews();
-  } else p.append(note('Scegli uno o più formati qui sotto: vedrai l\'anteprima e potrai decidere il taglio sulla foto.'));
-
-  const r = socialCur && frameRect(params, socialCur), cur = SOCIAL.find(t => t.id === socialCur);
-  if (cur && r) {
-    const fr = () => (params.frames[socialCur] ||= {});
-    p.append(section(`Taglio per ${cur.group} · ${cur.name}`),
-      chips([['crop', 'Ritaglia'], ['pad', 'Bordi'], ['blur', 'Sfondo sfocato']], r.fit, v => { commit('Formato'); fr().fit = v; renderPanel(); }));
-    if (r.fit === 'crop') p.append(
-      slider('Zoom', 1, 3, 0.01, () => params.frames[socialCur]?.z || 1, v => { fr().z = v; drawOverlay(); refreshSocialPreviews(socialCur); }, { neutral: 1 }),
-      actions(btn('Centra sul viso', () => { commit('Formato'); const f = fr(); delete f.x; delete f.y; renderPanel(); })),
-      note('Trascina il riquadro sulla foto per scegliere cosa tenere. Fuori dal riquadro la foto viene tagliata.'));
-    if (r.fit === 'pad') p.append(el('div', { className: 'chips' }, ...['#ffffff', '#f3efe9', '#000000', '#1c1c1c'].map(c =>
-      el('button', { className: 'chip swatch' + (o.padColor === c ? ' on' : ''), style: `background:${c}`, title: c, onclick: () => { o.padColor = c; saveExportOpts(); renderPanel(); } }))));
-  } else if (cur) p.append(note(`${cur.group} · ${cur.name}: la foto resta intera, cambia solo la risoluzione.`));
-
-  p.append(group('Scegli i formati', !sel.length, ...[...new Set(SOCIAL.map(t => t.group))].flatMap(g => [section(g),
-    el('div', { className: 'chips' }, ...SOCIAL.filter(x => x.group === g).map(t => {
+  // 1) dove la pubblichi
+  if (!cur && !socialPlat) {
+    p.append(el('h3', { className: 'ask', textContent: 'Dove vuoi pubblicarla?' }),
+      el('div', { className: 'tiles' }, ...groups.map(g => el('button', { className: 'tile', onclick: () => {
+        socialPlat = g; const f = SOCIAL.filter(t => t.group === g);
+        if (f.length === 1) socialCur = f[0].id;
+        go();
+      } }, el('b', { textContent: g }), el('span', { textContent: SOCIAL.filter(t => t.group === g).map(t => t.name.split(' (')[0]).slice(0, 2).join(', ') })))));
+    return;
+  }
+  // 2) che formato
+  if (!cur) {
+    p.append(back('Tutti i social', () => { socialPlat = null; go(); }),
+      el('h3', { className: 'ask', textContent: `${socialPlat}: che formato?` }));
+    const row = el('div', { className: 'cards' });
+    for (const t of SOCIAL.filter(x => x.group === socialPlat)) {
       const [w, h] = socialSize(t, fw, fh);
-      return el('button', { className: 'fmt' + (sel.includes(t.id) ? ' on' : ''), onclick: () => toggleSel(t.id) },
-        el('i', { className: 'ratio', style: `aspect-ratio:${w}/${h}` }), el('b', { textContent: t.name }), el('span', { textContent: `${w} × ${h}` }));
-    }))])));
-
-  p.append(group('Logo o firma', o.wm !== 'none',
-    chips([['none', 'Nessuno'], ['text', 'Testo'], ['image', 'Logo (immagine)']], o.wm, v => { o.wm = v; saveExportOpts(); renderPanel(); }),
-    o.wm === 'text' ? Object.assign(el('input', { type: 'text', value: o.wmText, className: 'search', placeholder: '@profilo' }), { oninput: e => { o.wmText = e.target.value; saveExportOpts(); } }) : null,
-    o.wm === 'image' ? actions(btn(o.wmImage ? 'Cambia logo' : 'Scegli il logo (PNG trasparente)', () => $('fileWm').click())) : null,
-    o.wm !== 'none' ? chips([['tl', '↖'], ['tr', '↗'], ['b', '↓ centro'], ['bl', '↙'], ['br', '↘']], o.wmPos, v => { o.wmPos = v; saveExportOpts(); renderPanel(); }) : null,
-    o.wm !== 'none' ? slider('Dimensione', 1, 25, 0.5, () => o.wmSize, v => { o.wmSize = v; saveExportOpts(); }, { neutral: 4 }) : null,
-    o.wm !== 'none' ? slider('Opacità', 0.05, 1, 0.01, () => o.wmOpacity, v => { o.wmOpacity = v; saveExportOpts(); }, { neutral: 0.6 }) : null,
-    o.wm !== 'none' ? note('Il logo compare nel file esportato, non nell\'anteprima.') : null));
-
-  p.append(actions(btn(sel.length > 1 ? `Esporta ${sel.length} formati` : 'Esporta', async () => {
-    if (!loaded || !sel.length) { toast('Scegli almeno un formato'); return; }
-    toast('Preparazione…');
-    try {
-      const files = [];
-      for (const id of sel) files.push(await buildExport(params, { ...o, target: id }));
-      await saveFiles(files); toast(files.length > 1 ? `${files.length} foto pronte` : 'Esportato: ' + files[0].name);
-    } catch (e) { alert('Errore di esportazione: ' + e.message); console.error(e); }
-    redraw();
-  }, 'primary')));
+      const card = el('button', { className: 'card', onclick: () => { socialCur = t.id; go(); } },
+        el('b', { textContent: t.name }), el('span', { textContent: `${w} × ${h} px` }));
+      thumb(card, () => socialPreview(t.id, 150)); row.append(card);
+    }
+    p.append(row);
+    return;
+  }
+  // 3) adatta e salva
+  const r = frameRect(params, cur.id), fit = socialFit(cur.id);
+  p.append(back(cur.group, () => { socialCur = null; socialPlat = SOCIAL.filter(t => t.group === cur.group).length > 1 ? cur.group : null; go(); }),
+    el('h3', { className: 'ask', textContent: `${cur.group} · ${cur.name}` }),
+    actions(btn(`Salva per ${cur.group}`, async () => {
+      toast('Preparazione…');
+      try { const f = await buildExport(params, { ...exportOpts, target: cur.id }); await saveFile(f); toast('Salvata: ' + f.name); }
+      catch (e) { alert('Errore di esportazione: ' + e.message); console.error(e); }
+      redraw();
+    }, 'primary big')));
+  if (!r) { p.append(note('La foto resta intera: cambia solo la risoluzione.')); return; }
+  const A = fw / fh, R = r.W / r.H;
+  if (Math.abs(A - R) / R < 0.02) { p.append(note('La foto ha già la forma giusta.')); return; }
+  p.append(el('p', { className: 'q', textContent: 'La foto ha una forma diversa. Come vuoi adattarla?' }));
+  const opts = el('div', { className: 'cards fit' });
+  for (const [v, label] of [['crop', 'Taglia'], ['pad', 'Bordi'], ['blur', 'Sfondo sfocato']]) {
+    const card = el('button', { className: 'card' + (fit === v ? ' on' : ''), onclick: () => { commit('Formato'); (params.frames[cur.id] ||= {}).fit = v; go(); } },
+      el('b', { textContent: label }));
+    thumb(card, () => { const [W, H] = socialSize(cur, fw, fh), k = 120 / Math.max(W, H); return composeFrame(params, fw, fh, Math.round(W * k), Math.round(H * k), v, exportOpts.padColor, cur.id); });
+    opts.append(card);
+  }
+  p.append(opts);
+  if (fit === 'crop') p.append(note('Sposta il riquadro sulla foto con il dito per scegliere cosa tenere.'),
+    slider('Avvicina', 1, 3, 0.01, () => params.frames[cur.id]?.z || 1, v => { (params.frames[cur.id] ||= {}).z = v; drawOverlay(); }, { neutral: 1 }));
+  if (fit === 'pad') p.append(el('div', { className: 'chips' }, ...[['#ffffff', 'Bianco'], ['#f3efe9', 'Crema'], ['#000000', 'Nero']].map(([c, n]) =>
+    el('button', { className: exportOpts.padColor === c ? 'on' : '', onclick: () => { exportOpts.padColor = c; saveExportOpts(); go(); } }, n))));
 };
 
 /* ---------- Pubblica: scritte ---------- */
 
-let textIdx = 0, textBoxes = [];
+let textIdx = 0, textBoxes = [], textEditing = false;
 const TEXT_TEMPLATES = [
   ['Nome e profilo', () => newText({ text: 'NOME COGNOME\n@profilo', font: 'elegante', size: 0.055, y: 0.88, spacing: 0.08 })],
   ['Prodotti usati', () => newText({ text: 'Prodotti usati\nFondotinta · Rossetto · Mascara', font: 'moderno', size: 0.032, x: 0.5, y: 0.9, box: 1, boxColor: '#000000', boxOpacity: 0.4 })],
@@ -1608,86 +1595,99 @@ const TEXT_TEMPLATES = [
   ['Testo libero', () => newText({ text: 'Scrivi qui', y: 0.5 })],
 ];
 PANELS['Testo'] = p => {
-  const L = params.texts;
-  textIdx = Math.min(textIdx, L.length - 1);
-  // modelli mostrati come anteprime sulla foto: tocca per aggiungerne uno
-  const grid = el('div', { className: 'tgrid' });
-  for (const [name, make] of TEXT_TEMPLATES) {
-    const cv = el('canvas', { width: 256, height: 192 });
-    grid.append(el('button', { className: 'tcard', onclick: () => { commit('Aggiungi scritta'); L.push(make()); textIdx = L.length - 1; renderPanel(); } },
-      cv, el('span', { textContent: name })));
+  const L = params.texts, t = textEditing ? L[textIdx] : null;
+  // senza scritta selezionata: scegli uno stile (anteprime sulla foto) oppure una delle scritte già messe
+  if (!t) {
+    textEditing = false;
+    p.append(el('h3', { className: 'ask', textContent: 'Scegli uno stile di scritta' }));
+    const grid = el('div', { className: 'cards tgrid2' });
+    for (const [name, make] of TEXT_TEMPLATES) {
+      const cv = el('canvas', { width: 300, height: 200 });
+      grid.append(el('button', { className: 'card', onclick: () => {
+        commit('Aggiungi scritta'); L.push(make()); textIdx = L.length - 1; textEditing = true; renderPanel(); toast('Scritta aggiunta: ora scrivi il tuo testo');
+      } }, cv, el('b', { textContent: name })));
+    }
+    setTimeout(() => {                                     // foto in piccolo + modello, con i caratteri veri
+      if (!loaded) return;
+      const [fw, fh] = engine.outputSize(params), k = Math.max(300 / fw, 200 / fh);
+      const base = renderFinal({ ...params, texts: [] }, Math.round(fw * k), Math.round(fh * k));
+      loadTextFonts().then(() => grid.querySelectorAll('canvas').forEach((cv, i) => {
+        const x = cv.getContext('2d'); x.drawImage(base, (300 - base.width) / 2, (200 - base.height) / 2);
+        drawTexts(x, 300, 200, [{ ...TEXT_TEMPLATES[i][1](), x: 0.5, y: 0.5, size: TEXT_TEMPLATES[i][1]().size * 1.6 }]);
+      }));
+      redraw();
+    }, 30);
+    p.append(grid);
+    if (L.length) p.append(el('p', { className: 'q', textContent: 'Le tue scritte (tocca per modificarla):' }),
+      el('div', { className: 'chips' }, ...L.map((x, i) => btn((x.text.split('\n')[0] || 'Scritta').slice(0, 22), () => { textIdx = i; textEditing = true; renderPanel(); }))));
+    return;
   }
-  setTimeout(() => {                                       // foto in piccolo + modello, con i caratteri veri
-    if (!loaded) return;
-    const [fw, fh] = engine.outputSize(params), k = Math.max(256 / fw, 192 / fh);
-    const base = renderFinal({ ...params, texts: [] }, Math.round(fw * k), Math.round(fh * k));
-    loadTextFonts().then(() => grid.querySelectorAll('canvas').forEach((cv, i) => {
-      const x = cv.getContext('2d'); x.drawImage(base, (256 - base.width) / 2, (192 - base.height) / 2);
-      drawTexts(x, 256, 192, [TEXT_TEMPLATES[i][1]()]);
-    }));
-    redraw();
-  }, 30);
-  p.append(section('Aggiungi una scritta'), grid);
-  if (L.length) p.append(section('Scritte sulla foto'), chips(L.map((t, i) => [i, (t.text.split('\n')[0] || 'Scritta').slice(0, 18)]), textIdx, v => { textIdx = +v; renderPanel(); }));
-  const t = L[textIdx];
-  if (!t) { p.append(note('Le scritte compaiono sulla foto e in tutte le esportazioni. Dopo averne aggiunta una puoi trascinarla sull\'immagine.')); return; }
-  const area = el('textarea', { className: 'txt', value: t.text, rows: 2 });
-  let typing = false;
-  area.oninput = () => { if (!typing) { commit('Testo'); typing = true; } t.text = area.value; drawOverlay(); };
-  area.onblur = () => { typing = false; renderTabs(); };
+  // modifica della scritta scelta: solo l'essenziale in vista, il resto in "Altre opzioni"
   const T2 = (k, label, min, max, step = 0.01, neutral = 0) => slider(label, min, max, step, () => t[k], v => { t[k] = v; drawOverlay(); }, { neutral });
   const flag = (k, label) => toggle(label, () => !!t[k], v => { t[k] = v ? 1 : 0; });
-  const colors = ['#ffffff', '#000000', '#f3e3d3', '#d4af37', '#e8505b', '#c8a2c8'];
-  const ci = el('input', { type: 'color', value: t.color }); ci.oninput = () => { t.color = ci.value; drawOverlay(); }; ci.onchange = () => commit('Colore testo');
-  p.append(area,
-    (() => {                                               // ogni carattere scritto con sé stesso
-      const c = chips(Object.entries(TEXT_FONTS).map(([k, v]) => [k, v[1]]), t.font, v => { commit('Carattere'); t.font = v; renderPanel(); });
-      [...c.children].forEach((b, i) => { b.classList.add('font'); b.style.fontFamily = Object.values(TEXT_FONTS)[i][0]; });
-      return c;
-    })(),
-    T2('size', 'Dimensione', 0.015, 0.25, 0.001, 0.06),
-    el('div', { className: 'chips' }, ...colors.map(c => el('button', { className: 'chip swatch' + (t.color === c ? ' on' : ''), style: `background:${c}`, title: c,
+  const area = el('textarea', { className: 'txt', value: t.text, rows: 2, placeholder: 'Scrivi qui' });
+  let typing = false;
+  area.oninput = () => { if (!typing) { commit('Testo'); typing = true; } t.text = area.value; drawOverlay(); };
+  area.onblur = () => { typing = false; };
+  const fonts = chips(Object.entries(TEXT_FONTS).map(([k, v]) => [k, v[1]]), t.font, v => { commit('Carattere'); t.font = v; renderPanel(); });
+  [...fonts.children].forEach((b, i) => { b.classList.add('font'); b.style.fontFamily = Object.values(TEXT_FONTS)[i][0]; });
+  const colors = [['#ffffff', 'Bianco'], ['#000000', 'Nero'], ['#f3e3d3', 'Crema'], ['#d4af37', 'Oro'], ['#e8505b', 'Rosso'], ['#c8a2c8', 'Lilla']];
+  const ci = el('input', { type: 'color', value: t.color, title: 'Altro colore' }); ci.oninput = () => { t.color = ci.value; drawOverlay(); }; ci.onchange = () => commit('Colore testo');
+  p.append(
+    el('div', { className: 'bar' }, el('button', { className: 'back', onclick: () => { textEditing = false; renderPanel(); } }, '‹ Fatto'),
+      btn('Elimina', () => { commit('Elimina scritta'); L.splice(textIdx, 1); textIdx = Math.max(0, textIdx - 1); textEditing = false; renderPanel(); }, 'danger')),
+    area, note('Trascina la scritta sulla foto per spostarla.'),
+    el('p', { className: 'q', textContent: 'Carattere' }), fonts,
+    el('p', { className: 'q', textContent: 'Colore' }),
+    el('div', { className: 'chips' }, ...colors.map(([c, n]) => el('button', { className: 'chip swatch' + (t.color === c ? ' on' : ''), style: `background:${c}`, title: n,
       onclick: () => { commit('Colore testo'); t.color = c; renderPanel(); } })), ci),
-    actions(flag('bold', 'Grassetto'), flag('italic', 'Corsivo'), flag('upper', 'MAIUSCOLO'), flag('box', 'Riquadro')),
-    chips([['left', 'Sinistra'], ['center', 'Centro'], ['right', 'Destra']], t.align, v => { commit('Allineamento'); t.align = v; renderPanel(); }),
-    group('Posizione e stile', false,
-      chips([['tl', '↖'], ['t', '↑'], ['tr', '↗'], ['c', '●'], ['bl', '↙'], ['b', '↓'], ['br', '↘']], '', v => {
-        commit('Posizione testo'); t.x = v.includes('l') ? 0.22 : v.includes('r') ? 0.78 : 0.5; t.y = v.includes('t') ? 0.1 : v.includes('b') ? 0.9 : 0.5; renderPanel();
-      }),
-      T2('spacing', 'Spaziatura lettere', -0.05, 0.5, 0.005), T2('shadow', 'Ombra', 0, 1, 0.01, 0.4), T2('opacity', 'Opacità', 0.1, 1, 0.01, 1),
-      t.box ? T2('boxOpacity', 'Opacità riquadro', 0.05, 1, 0.01, 0.45) : null,
-      t.box ? el('div', { className: 'row' }, el('label', { textContent: 'Colore riquadro' }),
-        Object.assign(el('input', { type: 'color', value: t.boxColor }), { oninput: e => { t.boxColor = e.target.value; drawOverlay(); }, onchange: () => commit('Riquadro') }), el('span')) : null),
-    actions(btn('Duplica', () => { commit('Duplica scritta'); L.splice(textIdx + 1, 0, { ...clone(t), id: newText().id, y: Math.min(0.95, t.y + 0.08) }); textIdx++; renderPanel(); }),
-      btn('Elimina', () => { commit('Elimina scritta'); L.splice(textIdx, 1); textIdx = Math.max(0, textIdx - 1); renderPanel(); })),
-    note('Trascina la scritta sull\'immagine per spostarla.'));
+    T2('size', 'Dimensione', 0.015, 0.25, 0.001, 0.06),
+    group('Altre opzioni', false,
+      chips([['left', 'Allinea a sinistra'], ['center', 'Al centro'], ['right', 'A destra']], t.align, v => { commit('Allineamento'); t.align = v; renderPanel(); }),
+      actions(flag('bold', 'Grassetto'), flag('italic', 'Corsivo'), flag('upper', 'Tutto maiuscolo'), flag('box', 'Sfondo dietro il testo')),
+      t.box ? T2('boxOpacity', 'Opacità dello sfondo', 0.05, 1, 0.01, 0.45) : null,
+      T2('spacing', 'Spazio tra le lettere', -0.05, 0.5, 0.005), T2('shadow', 'Ombra', 0, 1, 0.01, 0.4), T2('opacity', 'Trasparenza', 0.1, 1, 0.01, 1),
+      actions(btn('Duplica', () => { commit('Duplica scritta'); L.splice(textIdx + 1, 0, { ...clone(t), id: newText().id, y: Math.min(0.95, t.y + 0.08) }); textIdx++; renderPanel(); }))));
 };
 
 /* ---------- Pubblica: prima/dopo e collage ---------- */
 
 let baLayout = 'side', baLabels = true;
 PANELS['Prima/Dopo'] = p => {
-  p.append(section('Prima e dopo'), note('Per mostrare il tuo lavoro: la foto originale accanto a quella ritoccata, con il logo se impostato.'),
+  const prev = el('div', { className: 'bigprev' });
+  p.append(el('h3', { className: 'ask', textContent: 'Prima e dopo' }), prev,
     chips([['side', 'Affiancate'], ['stack', 'Una sopra l\'altra'], ['split', 'Metà e metà']], baLayout, v => { baLayout = v; renderPanel(); }),
-    actions(toggle('Scritte "Prima" e "Dopo"', () => baLabels, v => { baLabels = v; }, true),
-      btn('Crea prima/dopo', async () => {
-        if (!loaded) return; toast('Preparazione…');
-        try { await saveFile(await buildBeforeAfter(params, baLayout, baLabels)); } catch (e) { alert(e.message); console.error(e); }
-        redraw();
-      }, 'primary')),
-    section('Collage del look'), note('Foto intera con i dettagli di occhi e labbra, in formato 4:5 per Instagram.'),
-    actions(btn(faceBusy ? 'Analisi in corso…' : 'Crea collage', async () => {
+    actions(toggle('Scritte "Prima" e "Dopo"', () => baLabels, v => { baLabels = v; }, true)),
+    actions(btn('Salva prima/dopo', async () => {
+      if (!loaded) return; toast('Preparazione…');
+      try { await saveFile(await buildBeforeAfter(params, baLayout, baLabels)); } catch (e) { alert(e.message); console.error(e); }
+      redraw();
+    }, 'primary big')),
+    el('h3', { className: 'ask', textContent: 'Collage del look' }),
+    note('La foto in alto e, sotto, i dettagli di occhi e labbra (formato Instagram 4:5). Serve un viso ben visibile.'),
+    actions(btn(faceBusy ? 'Analisi in corso…' : 'Salva collage', async () => {
       if (!loaded) return;
       if (!engine.hasFace && !(await runFaceAnalysis())) return;
       const eyes = faceStats(0, 2, 0.3), lips = faceStats(0, 1, 0.3);
       if (!eyes || !lips) { alert('Non trovo occhi e labbra in questa foto: serve un viso ben visibile.'); return; }
       const grow = (b, k) => { const cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2, w = (b[2] - b[0]) * k / 2, h = (b[3] - b[1]) * k / 2; return [cx - w, cy - h, cx + w, cy + h]; };
       toast('Preparazione…');
-      const f = exportFocus(params), main = [0, f[1] - 0.01, 1, f[1] + 0.01];   // tutta la larghezza, centrata sul viso
+      const f = exportFocus(params), main = [0, f[1] - 0.01, 1, f[1] + 0.01];
       try { await saveFile(await buildCollage(params, { main, eyes: boxToOut(params, grow(eyes.box, 1.3)), lips: boxToOut(params, grow(lips.box, 1.6)) })); }
       catch (e) { alert(e.message); console.error(e); }
       redraw(); renderPanel();
-    }, 'primary')));
+    }, 'big')));
+  // anteprima del prima/dopo con la disposizione scelta (in piccolo)
+  setTimeout(async () => {
+    if (!loaded) return;
+    const [fw, fh] = engine.outputSize(params), k = 160 / Math.max(fw, fh), w = Math.round(fw * k), h = Math.round(fh * k);
+    const a = renderFinal(Object.assign(defaults(), { geo: clone(params.geo) }), w, h), b = renderFinal({ ...params, texts: [] }, w, h);
+    const W = baLayout === 'side' ? w * 2 + 2 : w, H = baLayout === 'stack' ? h * 2 + 2 : h, c = canvasOf(W, H), x = c.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); x.drawImage(a, 0, 0);
+    if (baLayout === 'split') { x.drawImage(b, w / 2, 0, w / 2, h, w / 2, 0, w / 2, h); x.fillRect(w / 2 - 1, 0, 2, h); }
+    else x.drawImage(b, baLayout === 'side' ? w + 2 : 0, baLayout === 'stack' ? h + 2 : 0);
+    prev.append(c); redraw();
+  }, 30);
 };
 
 /* ---------- Sfondo: sfocato, più scuro o meno colorato, per far risaltare la persona ---------- */

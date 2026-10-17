@@ -408,7 +408,7 @@ function toolDown(e) {
     const hit = textBoxes.slice().reverse().find(b => sx >= b.x && sx <= b.x + b.w && sy >= b.y && sy <= b.y + b.h);
     if (!hit) return false;
     const i = params.texts.findIndex(t => t.id === hit.id); if (i < 0) return false;
-    if (i !== textIdx) { textIdx = i; renderPanel(); }
+    if (i !== textIdx || !textEditing) { textIdx = i; textEditing = true; renderPanel(); }
     const t = params.texts[i];
     tool.drag = { x, y, tx: t.x, ty: t.y, before: clone(params) }; return true;
   }
@@ -455,7 +455,7 @@ function toolMove(e) {
     const r = T.rect(), f = (params.frames[socialCur] ||= {});
     f.x = Math.max(d.cw / 2, Math.min(1 - d.cw / 2, d.cx + (x - d.x) / r.width));
     f.y = Math.max(d.ch / 2, Math.min(1 - d.ch / 2, d.cy + (y - d.y) / r.height));
-    drawOverlay(); refreshSocialPreviews(socialCur);
+    drawOverlay();
   }
   else if (tool.mode === 'text') {
     const r = T.rect(), t = params.texts[textIdx]; if (!t) return;
@@ -581,7 +581,7 @@ function drawOverlay() {
   textBoxes = [];
   if (params.texts?.length && tool.mode !== 'crop') {
     textBoxes = drawTexts(ctx, r.width, r.height, params.texts, L, Tp);
-    const b = curTab === 'Testo' && textBoxes[textIdx];
+    const b = curTab === 'Testo' && textEditing && textBoxes[textIdx];
     if (b) { ctx.save(); ctx.strokeStyle = '#4da3ff'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]); ctx.strokeRect(b.x, b.y, b.w, b.h); ctx.restore(); }
   }
 

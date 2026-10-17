@@ -236,3 +236,31 @@ html { -webkit-text-size-adjust:100%; touch-action:manipulation; }
 input[type=text], input[type=search], input[type=number], input[type=password], select, textarea { font-size:16px; }
 .iosbar { background:var(--panel2); border-radius:10px; padding:10px 12px; margin:0 0 8px; font-size:13px; display:flex; gap:8px; align-items:flex-start; }
 .iosbar span { flex:1; }
+
+/* interruttori: casella di spunta, distinti dai pulsanti principali */
+button.tog { background:var(--panel2); color:var(--text); display:inline-flex; align-items:center; gap:8px; }
+button.tog::before { content:""; width:16px; height:16px; border-radius:4px; border:1.5px solid var(--dim); flex:none; box-sizing:border-box; }
+button.tog.on { background:var(--panel2); color:var(--text); }
+button.tog.on::before { background:var(--acc); border-color:var(--acc);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+/* Pubblica: un passo alla volta */
+.ask { font-size:17px; font-weight:600; margin:10px 0 10px; letter-spacing:-.01em; text-wrap:balance; }
+.q { color:var(--dim); font-size:13px; margin:12px 0 4px; }
+button.back { background:none; color:var(--acc); padding:8px 0; min-height:40px; font-weight:500; }
+.bar { display:flex; justify-content:space-between; align-items:center; }
+button.danger { background:none; color:#ff6b6b; }
+button.big { min-height:48px; font-size:15px; font-weight:600; padding:12px 20px; flex:1; }
+.tiles { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.tile { display:flex; flex-direction:column; align-items:flex-start; gap:3px; padding:14px; min-height:64px; text-align:left; border-radius:12px; }
+.tile b { font-size:15px; font-weight:600; }
+.tile span { font-size:11px; color:var(--dim); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(104px, 1fr)); gap:10px; }
+.cards.tgrid2 { grid-template-columns:1fr 1fr; }
+.card { display:flex; flex-direction:column; align-items:center; gap:6px; padding:8px; border-radius:12px; border:2px solid transparent; background:var(--panel2); }
+.card.on { border-color:var(--acc); background:var(--panel2); color:var(--text); }
+.card b { font-size:13px; font-weight:600; text-align:center; }
+.card span { font-size:11px; color:var(--dim); }
+.card canvas.pv { max-width:100%; max-height:120px; width:auto; height:auto; border-radius:4px; box-shadow:0 1px 5px #0007; }
+.cards.tgrid2 canvas { width:100%; height:auto; border-radius:8px; }
+.bigprev { display:flex; justify-content:center; margin:4px 0 6px; }
+.bigprev canvas { max-width:100%; max-height:170px; border-radius:6px; box-shadow:0 1px 6px #0007; }

@@ -26,8 +26,10 @@ Uso solo personale: niente reverse engineering o copia di codice/dati Adobe, sol
   (geometria, maschere, ritocco, testi, beauty, sfocatura).
 - Pubblica (export.js + app.js): `SOCIAL` formati (Instagram, TikTok, Facebook, Pinterest, X, LinkedIn, YouTube, WhatsApp, web, stampa),
   `composeFrame` ritaglia secondo `params.frames[id]` ({x, y, z, fit}, riquadro trascinabile sulla foto col modo `frame`, `frameRect`;
-  senza scelta: centrato sul viso con `exportFocus`), bordi o sfondo sfocato; anteprime esatte per formato (`socialPreview`);
-  modelli di scritta mostrati come anteprime; `params.texts` (scritte, `drawTexts`, font OFL in
+  senza scelta: centrato sul viso con `exportFocus`), bordi o sfondo sfocato. Interfaccia A PASSI (l'utente trovava confusa la versione
+  a lista unica): Social = social (`socialPlat`) → formato con anteprima → adatta (Taglia/Bordi/Sfondo sfocato con anteprime) + Salva;
+  Testo = griglia di stili → modifica di una scritta (`textEditing`, essenziale + "Altre opzioni"); Prima/Dopo con anteprima.
+  Interruttori (`toggle`) hanno classe `tog` (casella di spunta), diversi dai pulsanti principali. `params.texts` (scritte, `drawTexts`, font OFL in
   `vendor/fonts`, trascinabili con il modo `text`); `buildBeforeAfter`, `buildCollage`. Sfondo: maschera `Sfondo (AI)` (persona invertita)
   e sfocatura con profondità o con la sagoma della persona (`personDepth`).
 - Beauty (`bSmooth`, `bEven`, `bBright`, `bShine`): pelle riconosciuta dal colore in YCbCr con soglia di crominanza (niente soglie di
