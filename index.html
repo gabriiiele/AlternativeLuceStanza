@@ -12,7 +12,7 @@
 <title>Luce Stanza</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg">
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="stylesheet" href="style.css?v=12">
 </head>
 <body data-theme="dark">
 <input id="file" type="file" accept="image/*,.heic,.heif,.dng,.cr2,.cr3,.crw,.nef,.nrw,.arw,.srf,.sr2,.raf,.orf,.rw2,.pef,.srw,.3fr,.iiq,.x3f,.erf,.kdc,.mrw,.dcr,.mos,.rwl" multiple hidden>
@@ -33,14 +33,14 @@
 
 <!-- Editor -->
 <div id="editorView" class="view" hidden>
-  <header class="topbar">
-    <button id="btnBack" class="ibtn" title="Libreria">‹</button>
+  <header class="topbar edbar">
+    <button id="btnBack" class="ibtn" title="Libreria" aria-label="Libreria"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
     <span id="edTitle" class="title"></span>
-    <button id="btnUndo" class="ibtn" title="Annulla" disabled>↶</button>
-    <button id="btnRedo" class="ibtn" title="Ripeti" disabled>↷</button>
-    <button id="btnReset" class="ibtn" title="Ripristina tutto" disabled>⟲</button>
-    <button id="btnExport" class="ibtn" title="Salva copia sul dispositivo" disabled>⇩</button>
-    <button id="btnMenu" class="ibtn" title="Menu">⋮</button>
+    <button id="btnUndo" class="ibtn" title="Annulla" aria-label="Annulla" disabled><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+    <button id="btnRedo" class="ibtn" title="Ripeti" aria-label="Ripeti" disabled><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+    <button id="btnReset" class="ibtn" title="Ripristina tutto" aria-label="Ripristina tutto" disabled><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v6h6M4.5 15a8 8 0 1 0 1.9-8.3L4 10"/></svg></button>
+    <button id="btnExport" class="ibtn" title="Salva copia sul dispositivo" aria-label="Esporta" disabled><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg></button>
+    <button id="btnMenu" class="ibtn" title="Menu" aria-label="Menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5h.01M12 12h.01M12 19h.01"/></svg></button>
   </header>
   <main id="stage">
     <canvas id="view"></canvas>
@@ -49,26 +49,26 @@
     <div id="infoOv" hidden></div>
     <div id="empty"></div>
   </main>
+  <section id="panel" class="sheet" hidden></section>
   <nav id="tabs" class="subtabs"></nav>
-  <section id="panel"></section>
   <nav id="tools" class="toolbar"></nav>
 </div>
 <div id="toast" hidden></div>
 
-<script src="compat.js?v=11"></script>
-<script src="shaders.js?v=11"></script>
-<script src="engine.js?v=11"></script>
-<script src="profiles.js?v=11"></script>
-<script src="presets.js?v=11"></script>
-<script src="state.js?v=11"></script>
-<script src="db.js?v=11"></script>
-<script src="tools.js?v=11"></script>
-<script src="export.js?v=11"></script>
-<script src="ai.js?v=11"></script>
-<script src="backup.js?v=11"></script>
-<script src="merge.js?v=11"></script>
-<script src="camera.js?v=11"></script>
-<script src="app.js?v=11"></script>
-<script src="library.js?v=11"></script>
+<script src="compat.js?v=12"></script>
+<script src="shaders.js?v=12"></script>
+<script src="engine.js?v=12"></script>
+<script src="profiles.js?v=12"></script>
+<script src="presets.js?v=12"></script>
+<script src="state.js?v=12"></script>
+<script src="db.js?v=12"></script>
+<script src="tools.js?v=12"></script>
+<script src="export.js?v=12"></script>
+<script src="ai.js?v=12"></script>
+<script src="backup.js?v=12"></script>
+<script src="merge.js?v=12"></script>
+<script src="camera.js?v=12"></script>
+<script src="app.js?v=12"></script>
+<script src="library.js?v=12"></script>
 </body>
 </html>

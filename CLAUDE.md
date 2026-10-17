@@ -48,6 +48,10 @@ Uso solo personale: niente reverse engineering o copia di codice/dati Adobe, sol
   sfocati gaussiani precalcolati (`updateBlurs`, `uBlur1..3`), non campionamenti sparsi. Curve a 16 bit (1024 voci), dithering finale.
 - Interfaccia: `slider()` si regola solo trascinando in orizzontale (relativo), doppio tocco = neutro, tocco sul numero = valore preciso;
   `group()` = sezione richiudibile. Menu ⋮ (`openMenu`) apre i pannelli fuori barra (Esporta, Organizza, Versioni, Cronologia, Info).
+- Editor in stile Lightroom: barra in basso solo icone (attiva = pillola con nome), riga pannelli sopra (con AUTO per
+  `auto: true`), tendina `#panel` richiudibile (`sheetOpen`, `showTab(name)`, `closeSheet()`, maniglia `.grip`). `sheet: false`
+  = resta chiusa finché non si sceglie un pannello. Barra in alto solo icone SVG. Istogramma nascosto di default (`appSettings.ui = 2`).
+- Skill di design installate in `.claude/skills/` (taste-skill, MIT): `redesign-existing-projects` (quella adatta all'app) e `design-taste-frontend`.
 - Tutti gli script sono classici e condividono lo scope globale; ordine in `index.html`.
 
 ## Convenzioni importanti

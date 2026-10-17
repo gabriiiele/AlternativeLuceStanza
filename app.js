@@ -12,12 +12,13 @@ const BG = {
   sat: 'linear-gradient(90deg,#888,#f44)', exp: 'linear-gradient(90deg,#000,#fff)',
 };
 
-/* Barra strumenti in stile Lightroom: ogni strumento raggruppa uno o più pannelli.
+/* Barra strumenti in stile Lightroom: ogni strumento raggruppa uno o più pannelli, che si aprono in una
+   tendina richiudibile sopra la barra (l'immagine resta protagonista). sheet: false = la tendina resta chiusa
+   finché non si sceglie un pannello; auto: pulsante AUTO in testa alla riga dei pannelli.
    Versioni, Cronologia, Info, Organizza ed Esporta si aprono dal menu ⋮ in alto. */
 const TOOLS = [
   { label: 'Preset', icon: 'M4 6h16M4 12h16M4 18h10', subs: ['Preset', 'Profili', 'LUT'] },
-  { label: 'Auto', icon: 'M4 20l6-16h4l6 16M7 14h10', action: () => autoTone() },
-  { label: 'Modifica', icon: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4', subs: ['Luce', 'Curva', 'Colore', 'Mixer', 'Colore punto', 'Gradazione', 'B&N', 'Effetti', 'Dettagli', 'Ottica', 'Sfocatura', 'Calibrazione'] },
+  { label: 'Modifica', icon: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4', auto: true, sheet: false, subs: ['Luce', 'Curva', 'Colore', 'Mixer', 'Colore punto', 'Gradazione', 'B&N', 'Effetti', 'Dettagli', 'Ottica', 'Sfocatura', 'Calibrazione'] },
   { label: 'Ritaglia', icon: 'M6 2v16h16M2 6h16v16', subs: ['Ritaglio', 'Trasforma'] },
   { label: 'Maschere', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 3v18', subs: ['Maschere'] },
   { label: 'Ritocco', icon: 'M4 20l10-10M14 4l6 6-4 4-6-6zM4 20h5', subs: ['Ritocco', 'Beauty'] },
@@ -26,7 +27,6 @@ const TOOLS = [
 /* Modalità semplice: pochi strumenti essenziali, con il beauty in primo piano */
 const ICON_FACE = 'M12 3a8 9 0 1 0 0.01 0zM9 10h.01M15 10h.01M9 14.5c1.6 1.6 4.4 1.6 6 0';
 const TOOLS_SIMPLE = [
-  { label: 'Auto', icon: 'M4 20l6-16h4l6 16M7 14h10', action: () => autoTone() },
   { label: 'Preset', icon: 'M4 6h16M4 12h16M4 18h10', subs: ['Preset'] },
   { label: 'Regola', icon: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4', subs: ['Semplice'] },
   { label: 'Beauty', icon: ICON_FACE, subs: ['Beauty'] },
@@ -87,7 +87,7 @@ let bandIdx = 0, hslMode = 'color', curveMode = 'point', curveCh = 'curve', grad
 let maskIdx = 0, compIdx = 0, overlayOn = true, overlayCol = [1, 0.2, 0.2, 0.5], brushMode = false;
 let pcIdx = 0, pcShowRange = false, guidedOn = false;
 let curPreset = null, presetAmt = 1, presetCat = 'Tutti', presetQuery = '', presetManage = false, profGroup = 'Base';
-let clipboard = null, versions = [], prevEdits = null, menuTab = 'Preset';
+let clipboard = null, versions = [], prevEdits = null, menuTab = 'Preset', sheetOpen = false;
 const view = { scale: 1, x: 0, y: 0 };
 
 /* ---------- Utilità interfaccia ---------- */
@@ -194,7 +194,8 @@ const S = (k, label, min, max, step = 0.01, o = {}) =>
 
 /* ui = true: interruttore dell'interfaccia, non entra nella cronologia */
 function toggle(label, get, set, ui = false) {
-  return btn(label, () => { if (!ui) commit(label); set(!get()); renderPanel(); }, get() ? 'on' : '');
+  // nella libreria si ridisegna la libreria, nell'editor il pannello aperto
+  return btn(label, () => { if (!ui) commit(label); set(!get()); if ($('editorView').hidden) renderLibrary(); else renderPanel(); }, get() ? 'on' : '');
 }
 
 /* Finestra modale; ritorna una Promise con il pulsante scelto */
@@ -341,18 +342,25 @@ function renderTabs() {
   if (tool) menuTab = curTab;
   const nav = $('tools'); nav.innerHTML = '';
   for (const t of activeTools()) {
-    const b = el('button', { className: 'toolbtn' + (t === tool ? ' on' : ''), onclick: () => {
-      if (t.action) { t.action(); return; }
-      curTab = t.subs.includes(curTab) ? curTab : t.lastSub || t.subs[0]; renderTabs(); renderPanel();
+    const on = t === tool;
+    const b = el('button', { className: 'toolbtn' + (on ? ' on' : ''), title: t.label, onclick: () => {
+      if (on) sheetOpen = !sheetOpen;                    // secondo tocco: apre/chiude la tendina
+      else { curTab = t.lastSub || t.subs[0]; sheetOpen = t.sheet !== false; }
+      renderTabs(); renderPanel();
     } });
+    b.setAttribute('aria-label', t.label);
     b.append(svgIcon(t.icon), el('span', { textContent: t.label }));
     nav.append(b);
   }
-  const sub = $('tabs'); sub.innerHTML = ''; sub.hidden = !tool || tool.subs.length < 2;
+  const sub = $('tabs'); sub.innerHTML = ''; sub.hidden = !tool || (tool.subs.length < 2 && !tool.auto);
   if (tool) {
     tool.lastSub = curTab;
+    if (tool.auto) sub.append(el('button', { className: 'auto', onclick: autoTone }, el('span', { textContent: 'AUTO' })));
     for (const name of tool.subs) {
-      const b = el('button', { className: name === curTab ? 'on' : '', onclick: () => { curTab = name; renderTabs(); renderPanel(); } });
+      const b = el('button', { className: name === curTab && sheetOpen ? 'on' : '', onclick: () => {
+        if (name === curTab) sheetOpen = !sheetOpen; else { curTab = name; sheetOpen = true; }
+        renderTabs(); renderPanel();
+      } });
       if (ICONS[name]) b.append(svgIcon(ICONS[name], 20));
       b.append(el('span', { textContent: SUB_LABEL[name] || name }));
       sub.append(b);
@@ -360,16 +368,33 @@ function renderTabs() {
     sub.querySelector('.on')?.scrollIntoView({ inline: 'center', block: 'nearest' });
   }
 }
+/* Apre un pannello qualsiasi nella tendina (usato dal menu e dai collegamenti tra pannelli) */
+function showTab(name) { curTab = name; sheetOpen = true; renderTabs(); renderPanel(); }
+function closeSheet() {
+  if (!activeTools().some(t => t.subs?.includes(curTab))) curTab = menuTab;   // pannello del menu: torna allo strumento
+  sheetOpen = false; renderTabs(); renderPanel();
+}
 
 const PANELS = {};
 function renderPanel() {
-  const panel = $('panel'), top = panel.scrollTop; panel.innerHTML = '';
-  const append = panel.append.bind(panel);
-  if (!activeTools().some(t => t.subs?.includes(curTab)))   // pannello aperto dal menu: titolo e chiusura
-    append(el('div', { className: 'phead' }, el('b', {}, ICONS[curTab] ? svgIcon(ICONS[curTab], 20) : null, curTab),
-      btn('✕', () => { curTab = menuTab; renderTabs(); renderPanel(); }, 'ibtn')));
-  PANELS[curTab]({ append: (...k) => append(...k.filter(x => x != null)) });
-  panel.scrollTop = top;
+  const panel = $('panel');
+  const fromMenu = !activeTools().some(t => t.subs?.includes(curTab));
+  panel.hidden = !sheetOpen; panel.classList.toggle('tall', fromMenu);
+  if (sheetOpen) {
+    const same = panel.dataset.tab === curTab, top = panel.scrollTop;
+    panel.innerHTML = ''; panel.dataset.tab = curTab;
+    const append = panel.append.bind(panel);
+    const grip = el('div', { className: 'grip', title: 'Chiudi', onclick: closeSheet }, el('i'));
+    let y0 = null;                                       // trascinando la maniglia verso il basso si chiude
+    grip.addEventListener('touchstart', e => { y0 = e.touches[0].clientY; }, { passive: true });
+    grip.addEventListener('touchend', e => { if (y0 !== null && e.changedTouches[0].clientY - y0 > 30) closeSheet(); y0 = null; });
+    append(grip);
+    if (fromMenu)                                        // pannello aperto dal menu: titolo e chiusura
+      append(el('div', { className: 'phead' }, el('b', {}, ICONS[curTab] ? svgIcon(ICONS[curTab], 20) : null, curTab),
+        btn('✕', closeSheet, 'ibtn')));
+    PANELS[curTab]({ append: (...k) => append(...k.filter(x => x != null)) });
+    panel.scrollTop = same ? top : 0;
+  }
   syncToolMode(); redraw();
 }
 
@@ -707,7 +732,7 @@ PANELS['Trasforma'] = p => {
 PANELS['Sfocatura'] = p => {
   p.append(S('lbAmt', 'Intensità sfocatura', 0, 1),
     chips([['depth', 'Profondità AI'], ['radial', 'Fuoco circolare'], ['linear', 'Fuoco a fascia (tilt-shift)']], params.lbType, v => {
-      if (v === 'depth' && !engine.hasDepth) { curTab = 'Profondità'; renderTabs(); renderPanel(); toast('Calcola prima la mappa di profondità'); return; }
+      if (v === 'depth' && !engine.hasDepth) { showTab('Profondità'); toast('Calcola prima la mappa di profondità'); return; }
       commit('Sfocatura'); params.lbType = v; renderPanel();
     }),
     params.lbType === 'depth' ? S('lbFocus', 'Profondità a fuoco', 0, 1, 0.01, { bg: 'linear-gradient(90deg,#000,#fff)' }) : null,
@@ -1021,7 +1046,7 @@ function addDepthMask(name, lo, hi, smooth, adj) {
 function depthPortrait() {
   commit('Sfondo sfocato');
   Object.assign(params, { lbType: 'depth', lbAmt: 0.55, lbFocus: subjectDepth(), lbSize: 0.1, lbFeather: 0.35, lbBokeh: 0.3 });
-  curTab = 'Sfocatura'; renderTabs(); renderPanel();
+  showTab('Sfocatura');
   toast('Tocca il soggetto per scegliere cosa resta a fuoco');
 }
 function depthSubjectPop() {
@@ -1042,7 +1067,7 @@ function depthMask(front) {
   const m = front ? addDepthMask('Primo piano', s - 0.15, 1, 0.12, {}) : addDepthMask('Sfondo', 0, s - 0.15, 0.12, {});
   if (!m) return;
   maskIdx = params.masks.length - 1; compIdx = 0;
-  curTab = 'Maschere'; renderTabs(); renderPanel();
+  showTab('Maschere');
   toast('Maschera creata: ora scegli le regolazioni');
 }
 
@@ -1414,7 +1439,7 @@ function openMenu() {
   const wrap = el('div', { className: 'menu-wrap', onclick: e => { if (e.target === wrap) wrap.remove(); } }, box);
   document.body.append(wrap);
 }
-function openPanel(name) { if (!loaded) return; curTab = name; renderTabs(); renderPanel(); }
+function openPanel(name) { if (loaded) showTab(name); }
 
 async function viewOptions() {
   const o = appSettings, box = el('div', { className: 'checks one' });
@@ -1507,6 +1532,7 @@ async function loadIntoEditor(rec, show = true) {
   $('libraryView').hidden = true; $('editorView').hidden = false;
   $('empty').hidden = true; $('edTitle').textContent = rec.name;
   if (!activeTools().some(t => t.subs?.includes(curTab))) curTab = menuTab;
+  sheetOpen = false;                                     // all'apertura si vede solo la foto
   renderTabs(); renderPanel(); syncButtons(); syncViewOpts();
 }
 const openPhoto = async id => { const rec = photos.find(p => p.id === id); if (rec) { toast('Apertura…'); await loadIntoEditor(rec); } };
@@ -1581,6 +1607,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   $('btnReset').onclick = resetAll; $('btnMenu').onclick = openMenu;
   $('btnExport').onclick = exportImage;
   window.addEventListener('resize', redraw);
+  new ResizeObserver(() => redraw()).observe($('stage'));   // la tendina che si apre/chiude cambia lo spazio della foto
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveCurrent(); });
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
   await initLibrary();

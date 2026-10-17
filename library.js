@@ -7,8 +7,12 @@ const RAW_RE = /\.(dng|cr2|cr3|crw|nef|nrw|arw|srf|sr2|raf|orf|rw2|pef|srw|3fr|i
 const LABELS = { red: '#e53935', yellow: '#fdd835', green: '#43a047', blue: '#1e88e5', purple: '#8e24aa' };
 
 const appSettings = (() => {
-  const d = { theme: 'dark', cols: 3, importPreset: '', skipDuplicates: true, sort: 'taken', dir: -1, viewHist: true, viewInfo: false, viewClip: false };
-  try { return { ...d, ...JSON.parse(localStorage.getItem('appSettings') || '{}') }; } catch { return d; }
+  const d = { theme: 'dark', cols: 3, importPreset: '', skipDuplicates: true, sort: 'taken', dir: -1, viewHist: false, viewInfo: false, viewClip: false, ui: 2 };
+  try {
+    const s = { ...d, ...JSON.parse(localStorage.getItem('appSettings') || '{}') };
+    if (s.ui !== 2) { s.ui = 2; s.viewHist = false; }   // nuova interfaccia: istogramma nascosto (si riattiva da ⋮ → Visualizza)
+    return s;
+  } catch { return d; }
 })();
 function saveAppSettings() { try { localStorage.setItem('appSettings', JSON.stringify(appSettings)); } catch { /* spazio pieno */ } }
 
