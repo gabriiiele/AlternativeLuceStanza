@@ -236,7 +236,7 @@ function syncButtons() {
   $('btnUndo').disabled = !history.undo.length;
   $('btnRedo').disabled = !history.redo.length;
   $('btnReset').disabled = !loaded || !isEdited(params);
-  for (const id of ['btnCompare', 'btnExport']) $(id).disabled = !loaded;
+  $('btnExport').disabled = !loaded;
 }
 /* Ripristina tutte le modifiche (annullabile) */
 function resetAll() {
@@ -1483,10 +1483,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   $('btnUndo').onclick = undo; $('btnRedo').onclick = redo;
   $('btnReset').onclick = resetAll; $('btnMenu').onclick = openMenu;
   $('btnExport').onclick = exportImage;
-  const cmp = $('btnCompare');
-  const setCmp = v => { comparing = v; cmp.classList.toggle('on', v); redraw(); };
-  cmp.addEventListener('pointerdown', () => setCmp(true));
-  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) cmp.addEventListener(ev, () => setCmp(false));
   window.addEventListener('resize', redraw);
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveCurrent(); });
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});

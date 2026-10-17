@@ -89,6 +89,8 @@ async function importFiles(files) {
     libStatus(`Importazione ${i + 1} di ${files.length}…`);
     try {
       const hash = await quickHash(f);
+      const trashed = photos.find(p => p.hash === hash && p.trashed);
+      if (trashed) { delete trashed.trashed; await DB.put('photos', trashed); n++; continue; }
       if (appSettings.skipDuplicates && known.has(hash)) { dup++; continue; }
       const d = await decodePhoto(f, f.name), id = uid(), raw = RAW_RE.test(f.name);
       const edits = preset ? (preset.user ? buildPreset(preset.def, 1, defaults()) : buildPreset(preset.def, 1)) : null;
@@ -120,6 +122,8 @@ async function importInbox() {
 function visiblePhotos() {
   const f = lib.filter, q = lib.query.trim().toLowerCase();
   let list = photos.filter(p => {
+    if (lib.view === 'trash') return !!p.trashed;
+    if (p.trashed) return false;
     if (lib.view === 'album' && !p.albums.includes(lib.album)) return false;
     if (lib.view === 'picks' && p.flag !== 1) return false;
     if (lib.view === 'rejects' && p.flag !== -1) return false;
@@ -165,7 +169,9 @@ const ibtn = (name, onclick, title = '', cls = '') => { const b = el('button', {
 
 function libStatus(t) { $('libStatus').textContent = t; $('libStatus').hidden = !t; }
 
-const VIEWS = [['all', 'Tutte le foto'], ['picks', 'Scelte'], ['rated', 'Valutate'], ['edited', 'Modificate'], ['rejects', 'Rifiutate']];
+const VIEWS = [['all', 'Tutte le foto'], ['picks', 'Scelte'], ['rated', 'Valutate'], ['edited', 'Modificate'], ['rejects', 'Rifiutate'], ['trash', 'Cestino']];
+const TRASH_DAYS = 30;
+const livePhotos = () => photos.filter(p => !p.trashed);
 
 function renderLibrary() {
   document.body.dataset.theme = appSettings.theme;
@@ -199,7 +205,9 @@ function renderGrid(body) {
     s.oninput = () => { lib.query = s.value; fillGrid(); };
     body.append(s); setTimeout(() => s.focus(), 0);
   }
-  if (lib.view !== 'album') body.append(chips(VIEWS, lib.view, v => { lib.view = v; renderLibrary(); }));
+  if (lib.view !== 'album') body.append(chips(VIEWS.map(([v, t]) => [v, v === 'trash' && photos.some(p => p.trashed) ? `${t} (${photos.filter(p => p.trashed).length})` : t]), lib.view, v => { lib.view = v; lib.sel.clear(); renderLibrary(); }));
+  if (lib.view === 'trash') body.append(note(`Le foto eliminate restano qui ${TRASH_DAYS} giorni, poi vengono cancellate definitivamente.`),
+    photos.some(p => p.trashed) ? actions(btn('Svuota cestino', emptyTrash)) : null);
   if (lib.showFilters) {
     const f = lib.filter;
     body.append(el('div', { className: 'filters' },
@@ -261,7 +269,8 @@ function fillGrid() {
     grid.append(cell);
     thumbObserver.observe(cell);
   }
-  $('libCount').textContent = list.length ? `${list.length} foto` : (photos.length ? 'Nessuna foto con questi filtri.' : 'Nessuna foto: tocca + per importare dalla galleria, oppure condividi delle foto con l\'app dalla Galleria di Android.');
+  $('libCount').textContent = list.length ? `${list.length} foto` : lib.view === 'trash' ? 'Il cestino è vuoto.'
+    : (livePhotos().length ? 'Nessuna foto con questi filtri.' : 'Nessuna foto: tocca + per importare dalla galleria, oppure condividi delle foto con l\'app dalla Galleria di Android.');
 }
 
 /* ---------- Selezione multipla e azioni in blocco ---------- */
@@ -273,6 +282,12 @@ function renderSelBar() {
   const bar = $('selBar'); bar.innerHTML = ''; bar.hidden = !lib.selecting;
   if (!lib.selecting) return;
   const n = lib.sel.size;
+  if (lib.view === 'trash') {
+    bar.append(el('span', { textContent: `${n} selezionate` }),
+      btn('Tutte', () => { visiblePhotos().forEach(p => lib.sel.add(p.id)); fillGrid(); renderSelBar(); }),
+      btn('Ripristina', () => n && restoreFromTrash(), 'primary'), btn('Elimina definitivamente', () => n && batchDelete()));
+    return;
+  }
   bar.append(el('span', { textContent: `${n} selezionate` }),
     btn('Tutte', () => { visiblePhotos().forEach(p => lib.sel.add(p.id)); fillGrid(); renderSelBar(); }),
     btn('★', () => n && batchRate()), btn('⚑', () => n && batchFlag()), btn('●', () => n && batchLabel()),
@@ -349,9 +364,24 @@ async function batchExport() {
   for (const f of files) await saveFile(f);
 }
 async function batchDelete() {
-  if (!confirm(`Eliminare ${lib.sel.size} foto dalla libreria dell'app? (le foto nella galleria del telefono non vengono toccate)`)) return;
-  for (const p of selected()) await deletePhoto(p.id);
+  if (lib.view === 'trash') {
+    if (!confirm(`Eliminare definitivamente ${lib.sel.size} foto? Non si potranno recuperare.`)) return;
+    for (const p of selected()) await deletePhoto(p.id);
+  } else {
+    for (const p of selected()) { p.trashed = Date.now(); await DB.put('photos', p); }
+    toast(`${lib.sel.size} foto spostate nel cestino`);
+  }
   lib.sel.clear(); renderLibrary();
+}
+async function restoreFromTrash() {
+  for (const p of selected()) { delete p.trashed; await DB.put('photos', p); }
+  toast(`${lib.sel.size} foto ripristinate`); lib.sel.clear(); renderLibrary();
+}
+async function emptyTrash() {
+  const list = photos.filter(p => p.trashed);
+  if (!confirm(`Eliminare definitivamente ${list.length} foto?`)) return;
+  for (const p of list) await deletePhoto(p.id);
+  renderLibrary();
 }
 async function deletePhoto(id) {
   for (const s of ['photos', 'files', 'decoded', 'thumbs', 'depth']) await DB.del(s, id);
@@ -367,7 +397,7 @@ function renderAlbums(body) {
   })));
   const grid = el('div', { className: 'albums' });
   for (const a of albums) {
-    const inside = photos.filter(p => p.albums.includes(a.id));
+    const inside = livePhotos().filter(p => p.albums.includes(a.id));
     const img = el('img', { alt: '' }), card = el('div', { className: 'albumcard' }, img, el('b', { textContent: a.name }), el('span', { textContent: `${inside.length} foto` }));
     if (inside[0]) loadThumb(inside[0].id, img);
     card.onclick = () => { lib.view = 'album'; lib.album = a.id; renderLibrary(); };
@@ -401,6 +431,12 @@ async function renderSettings(body) {
     sel('Preset all\'importazione', [['', 'Nessuno'], ...presetEntries().map(e => [e.cat + '/' + e.name, `${e.cat} · ${e.name}`])], () => appSettings.importPreset, v => { appSettings.importPreset = v; saveAppSettings(); }),
     actions(toggle('Salta i duplicati', () => appSettings.skipDuplicates, v => { appSettings.skipDuplicates = v; saveAppSettings(); }, true),
       btn('Trova duplicati nella libreria', findDuplicates)),
+    section('Backup'),
+    note(appSettings.lastBackup ? `Ultimo backup: ${new Date(appSettings.lastBackup).toLocaleString('it-IT')}` : 'Nessun backup ancora. Le foto esistono solo dentro l\'app: fanne uno ogni tanto e salvalo su Google Drive o sul computer.'),
+    actions(btn('Crea backup', () => createBackup().catch(e => { libStatus(''); alert('Backup: ' + e.message); }), 'primary'),
+      btn('Ripristina da backup', () => $('fileBackup').click())),
+    note('Il backup contiene originali, modifiche, versioni, album, preset personali e impostazioni (non la chiave API).'),
+    section('Galleria'),
     note('Per aprire foto direttamente dalla Galleria: seleziona le foto nella Galleria, tocca Condividi e scegli Luce Stanza (dopo aver installato l\'app dal menu di Chrome).'),
     section('Esportazione'),
     actions(btn('Usa le impostazioni di esportazione attuali come predefinite', () => {
@@ -421,18 +457,18 @@ async function renderSettings(body) {
     btn('Elimina modelli AI scaricati', async () => { await caches.delete('transformers-cache'); toast('Modelli rimossi: verranno riscaricati al prossimo uso'); })),
     section('Informazioni'), note('Luce Stanza · editor fotografico personale. Elaborazione sul telefono; nessun dato inviato tranne le richieste a Claude, se configurate.'));
   const s = await storageInfo();
-  info.textContent = s ? `Spazio usato: ${fmtBytes(s.used)} su ${fmtBytes(s.quota)} disponibili · ${s.persisted ? 'archivio permanente' : 'archivio non permanente'} · ${photos.length} foto` : `${photos.length} foto`;
+  info.textContent = (s ? `Spazio usato: ${fmtBytes(s.used)} su ${fmtBytes(s.quota)} disponibili · ${s.persisted ? 'archivio permanente' : 'archivio non permanente'} · ` : '') + `${livePhotos().length} foto`;
 }
 
 async function findDuplicates() {
   const groups = {};
-  for (const p of photos) (groups[p.hash] ||= []).push(p);
+  for (const p of livePhotos()) (groups[p.hash] ||= []).push(p);
   const dups = Object.values(groups).filter(g => g.length > 1);
   if (!dups.length) { toast('Nessun duplicato trovato'); return; }
   const extra = dups.flatMap(g => g.slice(1));
   const r = await modal('Duplicati', note(`${dups.length} gruppi, ${extra.length} copie in più (${dups.map(g => g[0].name).slice(0, 5).join(', ')}${dups.length > 5 ? '…' : ''}).`), ['Annulla', 'Seleziona le copie', 'Elimina le copie']);
   if (r === 1) { lib.view = 'all'; lib.selecting = true; lib.sel = new Set(extra.map(p => p.id)); renderLibrary(); }
-  if (r === 2) { for (const p of extra) await deletePhoto(p.id); toast(`${extra.length} copie eliminate`); renderLibrary(); }
+  if (r === 2) { for (const p of extra) { p.trashed = Date.now(); await DB.put('photos', p); } toast(`${extra.length} copie spostate nel cestino`); renderLibrary(); }
 }
 
 /* ---------- Avvio libreria ---------- */
@@ -441,6 +477,11 @@ async function initLibrary() {
   libEngine = new Engine(document.createElement('canvas'));
   try { Object.assign(exportOpts, JSON.parse(localStorage.getItem('exportOpts') || '{}')); } catch { /* nessuna preferenza */ }
   photos = await DB.all('photos'); albums = await DB.all('albums');
+  for (const p of photos.filter(p => p.trashed && Date.now() - p.trashed > TRASH_DAYS * 864e5)) await deletePhoto(p.id);
+  $('fileBackup').onchange = e => {
+    const f = [...e.target.files]; e.target.value = '';
+    if (f.length) restoreBackup(f).catch(err => { libStatus(''); alert('Ripristino: ' + err.message); });
+  };
   albums.sort((a, b) => a.created - b.created);
   renderLibrary();
   await importInbox();

@@ -550,6 +550,10 @@ function drawOverlay() {
 function setupGestures() {
   const st = $('stage'), ptrs = new Map();
   let lastDist = 0, toolActive = false;
+  // tenere premuto sulla foto (senza strumenti attivi) mostra l'originale finché non si solleva il dito
+  let pressTimer = 0, pressAt = null;
+  const setCompare = v => { if (comparing === v) return; comparing = v; $('stage').classList.toggle('comparing', v); redraw(); };
+  const cancelPress = () => { clearTimeout(pressTimer); pressTimer = 0; pressAt = null; };
   const clampView = () => {
     if (view.scale <= 1) { view.scale = 1; view.x = view.y = 0; return; }
     const r = st.getBoundingClientRect(), mx = r.width * (view.scale - 1) / 2, my = r.height * (view.scale - 1) / 2;
@@ -559,13 +563,16 @@ function setupGestures() {
   st.addEventListener('pointerdown', e => {
     st.setPointerCapture(e.pointerId);
     ptrs.set(e.pointerId, [e.clientX, e.clientY]); lastDist = 0;
-    if (ptrs.size === 1) toolActive = toolDown(e);
-    else if (toolActive) { toolUp(); toolActive = false; }
+    if (ptrs.size === 1) {
+      toolActive = toolDown(e);
+      if (!toolActive && !tool.mode && loaded) { pressAt = [e.clientX, e.clientY]; pressTimer = setTimeout(() => { pressTimer = 0; setCompare(true); }, 350); }
+    } else { cancelPress(); setCompare(false); if (toolActive) { toolUp(); toolActive = false; } }
   });
   st.addEventListener('pointermove', e => {
     if (tool.mode === 'brush') { tool.cursor = T.stageXY(e); if (!toolActive) drawOverlay(); }
     if (!ptrs.has(e.pointerId)) return;
     const prev = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pressAt && Math.hypot(e.clientX - pressAt[0], e.clientY - pressAt[1]) > 10) cancelPress();
     if (toolActive) { toolMove(e); return; }
     if (ptrs.size === 1 && view.scale > 1 && tool.mode !== 'crop') { view.x += e.clientX - prev[0]; view.y += e.clientY - prev[1]; update(); }
     else if (ptrs.size === 2 && tool.mode !== 'crop') {
@@ -576,6 +583,7 @@ function setupGestures() {
   });
   const end = e => {
     ptrs.delete(e.pointerId); lastDist = 0;
+    if (!ptrs.size) { cancelPress(); setCompare(false); }
     if (toolActive && !ptrs.size) { toolUp(); toolActive = false; }
   };
   st.addEventListener('pointerup', end); st.addEventListener('pointercancel', end);

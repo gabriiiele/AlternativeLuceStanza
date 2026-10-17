@@ -8,13 +8,14 @@
 <title>Luce Stanza</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body data-theme="dark">
 <input id="file" type="file" accept="image/*,.dng,.cr2,.cr3,.crw,.nef,.nrw,.arw,.srf,.sr2,.raf,.orf,.rw2,.pef,.srw,.3fr,.iiq,.x3f,.erf,.kdc,.mrw,.dcr,.mos,.rwl" multiple hidden>
 <input id="fileLut" type="file" accept=".cube" hidden>
 <input id="filePreset" type="file" accept=".xmp,.lrtemplate,.json" multiple hidden>
 <input id="fileWm" type="file" accept="image/*" hidden>
+<input id="fileBackup" type="file" accept=".zip,application/zip" multiple hidden>
 
 <!-- Libreria -->
 <div id="libraryView" class="view">
@@ -34,7 +35,6 @@
     <button id="btnUndo" class="ibtn" title="Annulla" disabled>↶</button>
     <button id="btnRedo" class="ibtn" title="Ripeti" disabled>↷</button>
     <button id="btnReset" class="ibtn" title="Ripristina tutto" disabled>⟲</button>
-    <button id="btnCompare" class="ibtn" title="Tieni premuto per vedere l'originale" disabled>◐</button>
     <button id="btnExport" class="ibtn" title="Salva copia sul dispositivo" disabled>⇩</button>
     <button id="btnMenu" class="ibtn" title="Menu">⋮</button>
   </header>
@@ -51,16 +51,17 @@
 </div>
 <div id="toast" hidden></div>
 
-<script src="shaders.js?v=7"></script>
-<script src="engine.js?v=7"></script>
-<script src="profiles.js?v=7"></script>
-<script src="presets.js?v=7"></script>
-<script src="state.js?v=7"></script>
-<script src="db.js?v=7"></script>
-<script src="tools.js?v=7"></script>
-<script src="export.js?v=7"></script>
-<script src="ai.js?v=7"></script>
-<script src="app.js?v=7"></script>
-<script src="library.js?v=7"></script>
+<script src="shaders.js?v=8"></script>
+<script src="engine.js?v=8"></script>
+<script src="profiles.js?v=8"></script>
+<script src="presets.js?v=8"></script>
+<script src="state.js?v=8"></script>
+<script src="db.js?v=8"></script>
+<script src="tools.js?v=8"></script>
+<script src="export.js?v=8"></script>
+<script src="ai.js?v=8"></script>
+<script src="backup.js?v=8"></script>
+<script src="app.js?v=8"></script>
+<script src="library.js?v=8"></script>
 </body>
 </html>

@@ -163,3 +163,4 @@ button.primary, button.on { background:var(--acc); color:var(--acc-text); }
 .checks { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px; }
 .checks.one { grid-template-columns:1fr; max-height:55vh; overflow:auto; }
 .checks label { display:flex; gap:6px; align-items:center; }
+#stage.comparing::after { content:"Originale"; position:absolute; top:8px; left:50%; transform:translateX(-50%); background:#000b; color:#fff; padding:4px 12px; border-radius:12px; font-size:12px; pointer-events:none; }
