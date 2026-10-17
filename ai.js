@@ -3,6 +3,7 @@
 /* Funzioni AI:
    - Super Resolution: modelli ESRGAN (TensorFlow.js) inclusi nell'app, funzionano offline
    - Mappa di profondità: Depth Anything V2 Small (transformers.js), scaricato al primo uso (~27 MB) e poi in cache
+   - Analisi del viso: MediaPipe (incluso, offline) per beauty, trucco, occhi, denti e maschere persona/pelle/capelli
    - Look da descrizione: motore offline a parole chiave, oppure Claude (con chiave API personale) che vede la foto */
 
 const aiSettings = (() => {
@@ -175,6 +176,152 @@ function refineDepth(depthCanvas, guideCanvas) {
     dd.data[i * 4] = dd.data[i * 4 + 1] = dd.data[i * 4 + 2] = q;
   }
   dctx.putImageData(dd, 0, 0);
+}
+
+/* ---------- Analisi del viso (beauty e maschere) ----------
+   MediaPipe (incluso nell'app, funziona offline): Face Landmarker trova 478 punti per ogni viso (contorni di occhi,
+   labbra, sopracciglia, iride), Selfie Multiclass separa pelle, capelli, vestiti e sfondo.
+   Risultato: un'immagine con 9 zone in 3 fasce (alto: pelle, labbra, occhi · centro: denti, capelli, persona ·
+   basso: palpebre, sopracciglia, viso), letta dagli shader. */
+
+const FACE_PARTS = ['Pelle', 'Labbra', 'Occhi', 'Denti', 'Capelli', 'Persona', 'Palpebre', 'Sopracciglia', 'Viso'];
+const FACE_DIR = 'vendor/face/';
+let faceTasks = null;
+
+async function loadFaceTasks() {
+  if (faceTasks) return faceTasks;
+  const V = await import('./' + FACE_DIR + 'vision_bundle.mjs');
+  const fileset = { wasmLoaderPath: new URL(FACE_DIR + 'vision_wasm_internal.js', location.href).href,
+    wasmBinaryPath: new URL(FACE_DIR + 'vision_wasm_internal.wasm', location.href).href };
+  const opts = file => ({ baseOptions: { modelAssetPath: new URL(FACE_DIR + file, location.href).href, delegate: 'CPU' }, runningMode: 'IMAGE' });
+  const landmarker = await V.FaceLandmarker.createFromOptions(fileset, { ...opts('face_landmarker.task'), numFaces: 6,
+    minFaceDetectionConfidence: 0.4, minFacePresenceConfidence: 0.4 });
+  const segmenter = await V.ImageSegmenter.createFromOptions(fileset, { ...opts('selfie_multiclass.tflite'),
+    outputCategoryMask: false, outputConfidenceMasks: true });
+  return (faceTasks = { landmarker, segmenter });
+}
+
+// contorni dei punti di MediaPipe Face Mesh
+const FM = {
+  oval: [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109],
+  lipsOut: [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185],
+  lipsIn: [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191],
+  eyeR: [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246],
+  eyeL: [263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388, 466],
+  browR: [46, 53, 52, 65, 55, 107, 66, 105, 63, 70],
+  browL: [276, 283, 282, 295, 285, 336, 296, 334, 293, 300],
+  lidR: [33, 246, 161, 160, 159, 158, 157, 173, 133, 55, 65, 52, 53, 46],     // palpebra: dal bordo superiore dell'occhio al sopracciglio
+  lidL: [263, 466, 388, 387, 386, 385, 384, 398, 362, 285, 295, 282, 283, 276],
+};
+
+/* src: canvas della foto. Restituisce { canvas (w × 3h), faces } */
+async function faceMap(src, onProgress = () => {}) {
+  onProgress(0.05, 'Caricamento modelli…');
+  const { landmarker, segmenter } = await loadFaceTasks();
+  onProgress(0.4, 'Ricerca dei visi…');
+  const k = Math.min(1, 1024 / Math.max(src.width, src.height));
+  const w = Math.max(1, Math.round(src.width * k)), h = Math.max(1, Math.round(src.height * k)), n = w * h;
+  const img = canvasOf(w, h); const ictx = img.getContext('2d', { willReadFrequently: true });
+  ictx.imageSmoothingQuality = 'high'; ictx.drawImage(src, 0, 0, w, h);
+  // i punti si cercano su un'immagine più grande (visi piccoli nelle foto a figura intera)
+  const big = scaledCanvas(src, 2048);
+  const faces = landmarker.detect(big).faceLandmarks || [];
+  await nextFrame();
+
+  // segmentazione: tutta la foto, poi di nuovo su ogni viso ingrandito per avere bordi precisi
+  onProgress(0.6, 'Pelle e capelli…');
+  const Z = { hair: new Float32Array(n), skin: new Float32Array(n), person: new Float32Array(n) };
+  const segment = (canvas, put) => {
+    const r = segmenter.segment(canvas), m = r.confidenceMasks.map(x => x.getAsFloat32Array());
+    const mw = r.confidenceMasks[0].width, mh = r.confidenceMasks[0].height;
+    put(m, mw, mh); r.close();
+  };
+  // categorie: 0 sfondo, 1 capelli, 2 pelle del corpo, 3 pelle del viso, 4 vestiti, 5 accessori
+  segment(img, (m, mw, mh) => {
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const j = Math.min(mh - 1, Math.floor(y * mh / h)) * mw + Math.min(mw - 1, Math.floor(x * mw / w)), i = y * w + x;
+      Z.hair[i] = m[1][j]; Z.skin[i] = m[2][j] + m[3][j]; Z.person[i] = 1 - m[0][j];
+    }
+  });
+  for (const lm of faces) {
+    let x0 = 1, y0 = 1, x1 = 0, y1 = 0;
+    for (const p of lm) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); }
+    const s = Math.max((x1 - x0) * w, (y1 - y0) * h) * 2.2, cx = (x0 + x1) / 2 * w, cy = (y0 + y1) / 2 * h;
+    const bx = Math.max(0, Math.round(cx - s / 2)), by = Math.max(0, Math.round(cy - s / 2));
+    const bw = Math.min(w, Math.round(cx + s / 2)) - bx, bh = Math.min(h, Math.round(cy + s / 2)) - by;
+    if (bw < 32 || bh < 32 || bw * bh > n * 0.6) continue;    // viso già grande: basta la prima passata
+    const sc = Math.min(512, Math.round(s / k)) / Math.max(bw, bh);   // il ritaglio dalla foto originale
+    const crop = canvasOf(Math.round(bw * sc), Math.round(bh * sc));
+    crop.getContext('2d').drawImage(src, bx / k, by / k, bw / k, bh / k, 0, 0, crop.width, crop.height);
+    segment(crop, (m, mw, mh) => {
+      for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+        // sfumatura verso i bordi del ritaglio, così non si vede la giunzione
+        const e = Math.min(x, y, bw - 1 - x, bh - 1 - y) / (Math.min(bw, bh) * 0.12), a = Math.min(1, e);
+        const j = Math.min(mh - 1, Math.floor(y * mh / bh)) * mw + Math.min(mw - 1, Math.floor(x * mw / bw)), i = (by + y) * w + bx + x;
+        Z.hair[i] += (m[1][j] - Z.hair[i]) * a; Z.skin[i] += (m[2][j] + m[3][j] - Z.skin[i]) * a; Z.person[i] += (1 - m[0][j] - Z.person[i]) * a;
+      }
+    });
+  }
+
+  // zone dei punti del viso, disegnate come poligoni
+  onProgress(0.8, 'Occhi e labbra…');
+  const zone = (draw) => {
+    const c = canvasOf(w, h), x = c.getContext('2d'); x.fillStyle = '#fff';
+    for (const lm of faces) draw(x, (ids, close = true) => {
+      x.beginPath(); ids.forEach((id, t) => { const p = lm[id]; t ? x.lineTo(p.x * w, p.y * h) : x.moveTo(p.x * w, p.y * h); });
+      if (close) x.closePath();
+    }, lm);
+    const d = x.getImageData(0, 0, w, h).data, out = new Float32Array(n);
+    for (let i = 0; i < n; i++) out[i] = d[i * 4] / 255;
+    return out;
+  };
+  const fill = ids => (x, path) => { path(ids); x.fill(); };
+  const mouth = zone(fill(FM.lipsIn)), lips = zone(fill(FM.lipsOut));
+  for (let i = 0; i < n; i++) lips[i] = Math.max(0, lips[i] - mouth[i]);
+  const eyes = zone((x, path, lm) => {
+    path(FM.eyeR); x.fill(); path(FM.eyeL); x.fill();
+    if (lm.length > 477) for (const c of [468, 473]) {          // iride intera, anche se la palpebra la copre in parte
+      const r = Math.hypot((lm[c + 1].x - lm[c + 3].x) * w, (lm[c + 1].y - lm[c + 3].y) * h) / 2;
+      x.save(); path(c === 468 ? FM.eyeR : FM.eyeL); x.clip(); x.beginPath(); x.arc(lm[c].x * w, lm[c].y * h, r, 0, 7); x.fill(); x.restore();
+    }
+  });
+  const brows = zone((x, path) => { path(FM.browR); x.fill(); path(FM.browL); x.fill(); });
+  const lids = zone((x, path) => { path(FM.lidR); x.fill(); path(FM.lidL); x.fill(); });
+  const oval = zone(fill(FM.oval));
+  // il trucco delle palpebre sfuma oltre il contorno: zona allargata e morbida; occhi e labbra con bordi appena morbidi
+  const fs = Math.max(1, Math.round(Math.max(w, h) / 700));
+  boxBlur(lips, w, h, fs, 2); boxBlur(mouth, w, h, fs, 2); boxBlur(eyes, w, h, fs, 2); boxBlur(brows, w, h, fs, 2);
+  boxBlur(lids, w, h, fs * 3, 3); boxBlur(oval, w, h, fs * 2, 2);
+  for (let i = 0; i < n; i++) lids[i] = Math.min(1, lids[i] * 1.6) * (1 - eyes[i]) * (1 - brows[i] * 0.7);
+
+  // pelle: segmentazione allineata ai bordi della foto (filtro guidato), senza occhi, labbra, bocca e sopracciglia
+  const guided = a => {
+    const cv = canvasOf(w, h), x = cv.getContext('2d'), id = x.createImageData(w, h);
+    for (let i = 0; i < n; i++) { const v = Math.round(Math.max(0, Math.min(1, a[i])) * 255); id.data[i * 4] = v; id.data[i * 4 + 3] = 255; }
+    x.putImageData(id, 0, 0); refineDepth(cv, img);
+    const d = x.getImageData(0, 0, w, h).data; for (let i = 0; i < n; i++) a[i] = d[i * 4] / 255;
+  };
+  guided(Z.skin); guided(Z.hair); guided(Z.person);
+  // bordo della pelle sfumato: il ritocco svanisce gradualmente invece di fermarsi su una linea
+  for (let i = 0; i < n; i++) Z.skin[i] = Math.min(1, Math.max(0, (Z.skin[i] - 0.2) / 0.5));
+  boxBlur(Z.skin, w, h, fs * 3, 2);
+  for (let i = 0; i < n; i++) {
+    const s = Z.skin[i];
+    Z.skin[i] = s * (1 - Math.min(1, eyes[i] * 1.5)) * (1 - Math.min(1, lips[i] * 1.5)) * (1 - mouth[i]) * (1 - brows[i]);
+  }
+
+  const out = canvasOf(w, h * 3), octx = out.getContext('2d'), od = octx.createImageData(w, h * 3), D = od.data;
+  const bands = [[Z.skin, lips, eyes], [mouth, Z.hair, Z.person], [lids, brows, oval]];
+  bands.forEach((b, t) => {
+    for (let i = 0; i < n; i++) {
+      const o = (t * n + i) * 4;
+      D[o] = Math.round(Math.max(0, Math.min(1, b[0][i])) * 255); D[o + 1] = Math.round(Math.max(0, Math.min(1, b[1][i])) * 255);
+      D[o + 2] = Math.round(Math.max(0, Math.min(1, b[2][i])) * 255); D[o + 3] = 255;
+    }
+  });
+  octx.putImageData(od, 0, 0);
+  onProgress(1, 'Fatto');
+  return { canvas: out, faces: faces.length };
 }
 
 /* ---------- Look da descrizione ---------- */

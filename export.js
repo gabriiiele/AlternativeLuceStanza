@@ -1,6 +1,7 @@
 'use strict';
 
-/* Esportazione: formati, dimensioni, risoluzione (DPI), nitidezza di output, filigrana, metadati EXIF. */
+/* Esportazione: formati, dimensioni, risoluzione (DPI), nitidezza di output, filigrana, metadati EXIF,
+   formati per i social (con ritaglio intelligente, bordi o sfondo sfocato), scritte, prima/dopo e collage. */
 
 const exportOpts = {
   fmt: 'image/jpeg', quality: 0.92,
@@ -10,7 +11,42 @@ const exportOpts = {
   wm: 'none', wmText: '© ', wmSize: 4, wmOpacity: 0.6, wmColor: '#ffffff', wmPos: 'br', wmMargin: 3, wmImage: null,
   meta: 'all',                              // all | nogps | copyright | none
   copyright: '', name: '{nome}-modificata',
+  target: '', fit: 'crop', padColor: '#ffffff', // formato social: ritaglia | bordi | sfondo sfocato
 };
+
+/* Formati dei social (dimensioni consigliate). w×h = dimensione esatta; long = lato lungo, proporzioni libere.
+   rotate: segue l'orientamento della foto. JPEG sRGB: i social ricomprimono tutto ciò che è più grande. */
+const SOCIAL = [
+  { id: 'ig45', group: 'Instagram', name: 'Post verticale 4:5', w: 1080, h: 1350 },
+  { id: 'ig34', group: 'Instagram', name: 'Post 3:4 (griglia del profilo)', w: 1080, h: 1440 },
+  { id: 'ig11', group: 'Instagram', name: 'Post quadrato', w: 1080, h: 1080 },
+  { id: 'igl', group: 'Instagram', name: 'Post orizzontale', w: 1080, h: 566 },
+  { id: 'igs', group: 'Instagram', name: 'Storie e Reel 9:16', w: 1080, h: 1920 },
+  { id: 'tt', group: 'TikTok', name: 'Foto e copertina 9:16', w: 1080, h: 1920 },
+  { id: 'fb', group: 'Facebook', name: 'Post (proporzioni della foto)', long: 2048 },
+  { id: 'fb45', group: 'Facebook', name: 'Post verticale 4:5', w: 1080, h: 1350 },
+  { id: 'fbs', group: 'Facebook', name: 'Storie 9:16', w: 1080, h: 1920 },
+  { id: 'fbc', group: 'Facebook', name: 'Copertina pagina', w: 1640, h: 624 },
+  { id: 'pin', group: 'Pinterest', name: 'Pin 2:3', w: 1000, h: 1500 },
+  { id: 'x', group: 'X / Threads', name: 'Post 16:9', w: 1600, h: 900 },
+  { id: 'li', group: 'LinkedIn', name: 'Post orizzontale', w: 1200, h: 627 },
+  { id: 'li45', group: 'LinkedIn', name: 'Post verticale 4:5', w: 1080, h: 1350 },
+  { id: 'yt', group: 'YouTube', name: 'Miniatura 16:9', w: 1280, h: 720 },
+  { id: 'wa', group: 'WhatsApp', name: 'Foto e stato (lato lungo 1600)', long: 1600 },
+  { id: 'web', group: 'Web', name: 'Sito o portfolio (lato lungo 2048)', long: 2048, quality: 0.85 },
+  { id: 'a4', group: 'Stampa', name: 'A4 a 300 DPI', w: 2480, h: 3508, rotate: true, dpi: 300, quality: 0.95 },
+  { id: 'a3', group: 'Stampa', name: 'A3 a 300 DPI', w: 3508, h: 4961, rotate: true, dpi: 300, quality: 0.95 },
+  { id: '10x15', group: 'Stampa', name: 'Foto 10×15 cm a 300 DPI', w: 1200, h: 1800, rotate: true, dpi: 300, quality: 0.95 },
+];
+const socialTarget = o => SOCIAL.find(t => t.id === o.target) || null;
+/* Dimensione finale di un formato per una foto fw × fh */
+function socialSize(t, fw, fh) {
+  if (t.long) { const k = Math.min(1, t.long / Math.max(fw, fh)); return [Math.round(fw * k), Math.round(fh * k)]; }
+  let W = t.w, H = t.h;
+  if (t.rotate && (fw > fh) !== (W > H)) [W, H] = [H, W];
+  const k = Math.min(1, CANVAS_MAX_SIDE / Math.max(W, H), Math.sqrt(CANVAS_MAX_AREA / (W * H)));
+  return [Math.round(W * k), Math.round(H * k)];
+}
 
 const supportsAvif = (() => {
   try { const c = document.createElement('canvas'); c.width = c.height = 1; return c.toDataURL('image/avif').startsWith('data:image/avif'); }
@@ -188,6 +224,58 @@ function drawWatermark(ctx, w, h, o) {
   ctx.restore();
 }
 
+/* ---------- Scritte sulla foto ----------
+   Ogni scritta: testo (anche su più righe), carattere, dimensione (rispetto al lato corto), colore, posizione del centro
+   (0..1 sulla foto finita), allineamento, maiuscolo, spaziatura, ombra, riquadro di sfondo, opacità. */
+const TEXT_FONTS = {
+  moderno: ['"LS Montserrat", system-ui, sans-serif', 'Moderno'],
+  elegante: ['"LS Playfair", Georgia, "Times New Roman", serif', 'Elegante'],
+  titolo: ['"LS Bebas", Impact, "Arial Narrow", sans-serif', 'Titolo'],
+  firma: ['"LS Vibes", "Brush Script MT", cursive', 'Firma'],
+  classico: ['"LS Cormorant", Georgia, serif', 'Classico'],
+};
+const newText = (o = {}) => ({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), text: 'Testo', font: 'moderno', bold: 0, italic: 0,
+  size: 0.06, color: '#ffffff', x: 0.5, y: 0.85, align: 'center', upper: 0, spacing: 0, shadow: 0.4, box: 0, boxColor: '#000000', boxOpacity: 0.45, opacity: 1, ...o });
+let fontsReady = null;
+function loadTextFonts() {
+  if (!document.fonts) return Promise.resolve();
+  return (fontsReady ||= Promise.all(['400 20px "LS Montserrat"', '600 20px "LS Montserrat"', '400 20px "LS Playfair"', '700 20px "LS Playfair"',
+    'italic 400 20px "LS Playfair"', '400 20px "LS Bebas"', '400 20px "LS Vibes"', '400 20px "LS Cormorant"', '600 20px "LS Cormorant"']
+    .map(f => document.fonts.load(f).catch(() => null))));
+}
+
+/* Disegna le scritte su un'area w × h (con origine ox, oy); restituisce i riquadri occupati (per selezionarle e spostarle) */
+function drawTexts(ctx, w, h, texts, ox = 0, oy = 0) {
+  const boxes = [];
+  for (const t of texts || []) {
+    if (!t.text) continue;
+    const fs = Math.max(4, t.size * Math.min(w, h));
+    const weight = t.bold ? (t.font === 'moderno' || t.font === 'classico' ? 600 : 700) : 400;
+    ctx.save();
+    ctx.font = `${t.italic ? 'italic ' : ''}${weight} ${fs}px ${(TEXT_FONTS[t.font] || TEXT_FONTS.moderno)[0]}`;
+    if ('letterSpacing' in ctx) ctx.letterSpacing = (t.spacing * fs) + 'px';
+    const lines = (t.upper ? t.text.toUpperCase() : t.text).split('\n'), lh = fs * 1.18;
+    const widths = lines.map(l => ctx.measureText(l).width), tw = Math.max(...widths), th = lh * lines.length;
+    const cx = ox + t.x * w, cy = oy + t.y * h;
+    const pad = fs * 0.45, bx = cx - tw / 2 - pad, by = cy - th / 2 - pad * 0.7, bw = tw + pad * 2, bh = th + pad * 1.4;
+    ctx.globalAlpha = t.opacity;
+    if (t.box) {
+      ctx.save(); ctx.globalAlpha = t.opacity * t.boxOpacity; ctx.fillStyle = t.boxColor;
+      const r = Math.min(bh / 2, fs * 0.25);
+      ctx.beginPath(); ctx.moveTo(bx + r, by); ctx.arcTo(bx + bw, by, bx + bw, by + bh, r); ctx.arcTo(bx + bw, by + bh, bx, by + bh, r);
+      ctx.arcTo(bx, by + bh, bx, by, r); ctx.arcTo(bx, by, bx + bw, by, r); ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+    if (t.shadow > 0 && !t.box) { ctx.shadowColor = `rgba(0,0,0,${0.25 + t.shadow * 0.45})`; ctx.shadowBlur = fs * 0.12 * (0.5 + t.shadow); ctx.shadowOffsetY = fs * 0.03; }
+    ctx.fillStyle = t.color; ctx.textBaseline = 'middle';
+    ctx.textAlign = t.align === 'left' ? 'left' : t.align === 'right' ? 'right' : 'center';
+    const ax = t.align === 'left' ? cx - tw / 2 : t.align === 'right' ? cx + tw / 2 : cx;
+    lines.forEach((l, i) => ctx.fillText(l, ax, cy - th / 2 + lh * (i + 0.5)));
+    ctx.restore();
+    boxes.push({ id: t.id, x: bx, y: by, w: bw, h: bh });
+  }
+  return boxes;
+}
+
 /* ---------- Esportazione ---------- */
 
 function exportSize(w, h, o) {
@@ -213,12 +301,62 @@ function fileNameFor(o, ext) {
 }
 let exportCounter = 0;
 
-/* Esegue il rendering finale e restituisce un File */
-async function buildExport(p, opts = exportOpts) {
-  const [fw, fh] = engine.outputSize(p);
-  const [w, h] = exportSize(fw, fh, opts);
+/* Foto finita (regolazioni + scritte) a w × h */
+function renderFinal(p, w, h) {
   const b = brushCanvases();
   const canvas = engine.renderToCanvas(effectiveParams(p), w, h, { brushes: b.list, brushVer: b.ver });
+  if (p.texts?.length) drawTexts(canvas.getContext('2d'), w, h, p.texts);
+  return canvas;
+}
+
+/* Inserisce la foto (fw × fh) in un formato W × H: ritaglio attorno al soggetto, bordi colorati o sfondo sfocato */
+function composeFrame(p, fw, fh, W, H, fit, padColor) {
+  const out = canvasOf(W, H), ctx = out.getContext('2d');
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  const lim = (w, h) => Math.min(1, CANVAS_MAX_SIDE / Math.max(w, h), Math.sqrt(CANVAS_MAX_AREA / (w * h)));
+  if (fit === 'crop') {
+    const s = Math.max(W / fw, H / fh), k = lim(fw * s, fh * s);
+    const rw = Math.max(1, Math.round(fw * s * k)), rh = Math.max(1, Math.round(fh * s * k)), img = renderFinal(p, rw, rh);
+    const cw = W / (fw * s), ch = H / (fh * s), f = typeof exportFocus === 'function' ? exportFocus(p) : [0.5, 0.5];
+    const cx = Math.max(cw / 2, Math.min(1 - cw / 2, f[0])), cy = Math.max(ch / 2, Math.min(1 - ch / 2, f[1]));
+    ctx.drawImage(img, (cx - cw / 2) * rw, (cy - ch / 2) * rh, cw * rw, ch * rh, 0, 0, W, H);
+    return out;
+  }
+  const s = Math.min(W / fw, H / fh), iw = Math.round(fw * s), ih = Math.round(fh * s), img = renderFinal(p, iw, ih);
+  if (fit === 'blur') {
+    // sfondo: la stessa foto ingrandita e molto sfocata (rimpicciolita e riallargata in due passi), un po' più scura
+    const c = Math.max(W / iw, H / ih), small = canvasOf(Math.max(4, Math.round(W / 40)), Math.max(4, Math.round(H / 40)));
+    const sx = small.getContext('2d'); sx.imageSmoothingQuality = 'high';
+    const sw = W / c, sh = H / c; sx.drawImage(img, (iw - sw) / 2, (ih - sh) / 2, sw, sh, 0, 0, small.width, small.height);
+    const mid = canvasOf(Math.round(W / 8), Math.round(H / 8)), mx = mid.getContext('2d'); mx.imageSmoothingQuality = 'high';
+    mx.drawImage(small, 0, 0, mid.width, mid.height);
+    ctx.drawImage(mid, 0, 0, W, H); ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(0, 0, W, H);
+  } else { ctx.fillStyle = padColor || '#ffffff'; ctx.fillRect(0, 0, W, H); }
+  ctx.drawImage(img, Math.round((W - iw) / 2), Math.round((H - ih) / 2));
+  return out;
+}
+
+/* Esegue il rendering finale e restituisce un File */
+async function buildExport(p, opts = exportOpts) {
+  await loadTextFonts();
+  const [fw, fh] = engine.outputSize(p), t = socialTarget(opts);
+  let canvas, w, h;
+  if (t) {
+    [w, h] = socialSize(t, fw, fh);
+    canvas = t.long ? renderFinal(p, w, h) : composeFrame(p, fw, fh, w, h, opts.fit, opts.padColor);
+    // per i social: JPEG di qualità alta, leggera nitidezza per lo schermo (i social ammorbidiscono le foto)
+    opts = { ...opts, fmt: 'image/jpeg', quality: t.quality || 0.9, dpi: t.dpi || opts.dpi,
+      outSharp: opts.outSharp === 'none' && !t.dpi ? 'low' : opts.outSharp, outSharpType: t.dpi ? 'glossy' : 'screen',
+      name: opts.name + '-' + t.id };
+  } else {
+    [w, h] = exportSize(fw, fh, opts);
+    canvas = renderFinal(p, w, h);
+  }
+  return finishExport(canvas, w, h, opts);
+}
+
+/* Nitidezza di output, filigrana, codifica e metadati */
+async function finishExport(canvas, w, h, opts) {
   const fmt = opts.fmt;
   if (opts.outSharp !== 'none' || opts.wm !== 'none') {
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -241,6 +379,58 @@ async function buildExport(p, opts = exportOpts) {
     } else if (fmt === 'image/png') bytes = patchPng(bytes, opts.dpi);
   }
   return new File([bytes], fileNameFor(opts, ext), { type: fmt });
+}
+
+/* ---------- Prima / dopo ----------
+   layout: side (affiancate) | stack (una sopra l'altra) | split (metà e metà con una linea) */
+async function buildBeforeAfter(p, layout = 'side', labels = true, opts = exportOpts) {
+  await loadTextFonts();
+  const [fw, fh] = engine.outputSize(p);
+  const orig = Object.assign(defaults(), { geo: clone(p.geo) });       // stessa inquadratura, nessuna regolazione
+  const long = 1600, k = Math.min(1, long / Math.max(fw, fh)), w = Math.round(fw * k), h = Math.round(fh * k);
+  const gap = layout === 'split' ? 0 : Math.round(Math.max(w, h) * 0.008);
+  const W = layout === 'side' ? w * 2 + gap : w, H = layout === 'stack' ? h * 2 + gap : h;
+  const out = canvasOf(W, H), ctx = out.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  const a = renderFinal({ ...orig, texts: [] }, w, h); ctx.drawImage(a, 0, 0);
+  const b = renderFinal({ ...p, texts: [] }, w, h);           // senza scritte: il confronto resta pulito
+  if (layout === 'split') {
+    ctx.drawImage(b, w / 2, 0, w / 2, h, w / 2, 0, w / 2, h);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(w / 2 - Math.max(1, w * 0.002), 0, Math.max(2, w * 0.004), h);
+  } else ctx.drawImage(b, layout === 'side' ? w + gap : 0, layout === 'stack' ? h + gap : 0);
+  if (labels) {                                      // etichette nell'angolo in basso di ciascuna foto
+    const lab = o => newText({ font: 'moderno', bold: 1, upper: 1, spacing: 0.18, size: 0.04, shadow: 0.7, color: '#ffffff', y: 0.93, ...o });
+    if (layout === 'split') drawTexts(ctx, w, h, [lab({ text: 'Prima', align: 'left', x: 0.12 }), lab({ text: 'Dopo', align: 'right', x: 0.88 })]);
+    else {
+      drawTexts(ctx, w, h, [lab({ text: 'Prima', align: 'left', x: 0.12 })]);
+      drawTexts(ctx, w, h, [lab({ text: 'Dopo', align: 'left', x: 0.12 })], layout === 'side' ? w + gap : 0, layout === 'stack' ? h + gap : 0);
+    }
+  }
+  return finishExport(out, W, H, { ...opts, fmt: 'image/jpeg', quality: 0.92, outSharp: 'low', outSharpType: 'screen', name: opts.name + '-prima-dopo' });
+}
+
+/* ---------- Collage del look: foto + dettagli di occhi e labbra (serve l'analisi del viso) ---------- */
+async function buildCollage(p, details, opts = exportOpts) {
+  await loadTextFonts();
+  const W = 1080, H = 1350, g = 10, out = canvasOf(W, H), ctx = out.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  ctx.imageSmoothingQuality = 'high';
+  const [fw, fh] = engine.outputSize(p), k = Math.min(1, 3000 / Math.max(fw, fh)), rw = Math.round(fw * k), rh = Math.round(fh * k);
+  const img = renderFinal(p, rw, rh);
+  const draw = (r, x, y, w, h) => {                 // r: zona da mostrare (0..1), allargata alle proporzioni del riquadro
+    let cw = r[2] - r[0], ch = r[3] - r[1]; const A = w / h;
+    if (cw * rw / (ch * rh) > A) ch = cw * rw / A / rh; else cw = ch * rh * A / rw;
+    if (cw > 1) { cw = 1; ch = rw / A / rh; }
+    if (ch > 1) { ch = 1; cw = rh * A / rw; }
+    const cx = Math.max(cw / 2, Math.min(1 - cw / 2, (r[0] + r[2]) / 2)), cy = Math.max(ch / 2, Math.min(1 - ch / 2, (r[1] + r[3]) / 2));
+    ctx.drawImage(img, (cx - cw / 2) * rw, (cy - ch / 2) * rh, cw * rw, ch * rh, x, y, w, h);
+  };
+  // in alto la foto (centrata sul viso), sotto i due dettagli affiancati
+  const mh = Math.round((H - 3 * g) * 0.64), dw = (W - 3 * g) / 2, dh = H - 3 * g - mh;
+  draw(details.main || [0, 0, 1, 1], g, g, W - 2 * g, mh);
+  draw(details.eyes, g, 2 * g + mh, dw, dh);
+  draw(details.lips, 2 * g + dw, 2 * g + mh, dw, dh);
+  return finishExport(out, W, H, { ...opts, fmt: 'image/jpeg', quality: 0.92, outSharp: 'low', outSharpType: 'screen', name: opts.name + '-collage' });
 }
 
 async function saveFile(f) {

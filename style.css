@@ -1,3 +1,13 @@
+/* caratteri per le scritte sulle foto (OFL, inclusi nell'app) */
+@font-face { font-family:'LS Montserrat'; src:url(vendor/fonts/montserrat-latin-400-normal.woff2) format('woff2'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'LS Montserrat'; src:url(vendor/fonts/montserrat-latin-600-normal.woff2) format('woff2'); font-weight:600; font-style:normal; font-display:swap; }
+@font-face { font-family:'LS Playfair'; src:url(vendor/fonts/playfair-display-latin-400-normal.woff2) format('woff2'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'LS Playfair'; src:url(vendor/fonts/playfair-display-latin-700-normal.woff2) format('woff2'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face { font-family:'LS Playfair'; src:url(vendor/fonts/playfair-display-latin-400-italic.woff2) format('woff2'); font-weight:400; font-style:italic; font-display:swap; }
+@font-face { font-family:'LS Bebas'; src:url(vendor/fonts/bebas-neue-latin-400-normal.woff2) format('woff2'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'LS Vibes'; src:url(vendor/fonts/great-vibes-latin-400-normal.woff2) format('woff2'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'LS Cormorant'; src:url(vendor/fonts/cormorant-garamond-latin-400-normal.woff2) format('woff2'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'LS Cormorant'; src:url(vendor/fonts/cormorant-garamond-latin-600-normal.woff2) format('woff2'); font-weight:600; font-style:normal; font-display:swap; }
 :root, [data-theme="dark"] { --bg:#121212; --panel:#1f1f1f; --panel2:#2a2a2a; --line:#333; --text:#e9e9e9; --dim:#9a9a9a; --acc:#31a8ff; --acc-text:#001726; }
 [data-theme="oled"] { --bg:#000; --panel:#0b0b0b; --panel2:#1a1a1a; --line:#222; --text:#eee; --dim:#8a8a8a; }
 [data-theme="light"] { --bg:#ececec; --panel:#fafafa; --panel2:#e3e3e3; --line:#d0d0d0; --text:#1b1b1b; --dim:#666; --acc:#1473e6; --acc-text:#fff; }
@@ -145,6 +155,11 @@ button:active:not(:disabled) { transform:scale(.96); }
 .note { color:var(--dim); margin:6px 0; font-size:13px; }
 .search, .num, select, .prompt { background:var(--panel2); color:var(--text); border:0; border-radius:8px; padding:9px 12px; font:inherit; width:100%; }
 .search { margin-bottom:8px; }
+.chips button.fmt { display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; padding:8px 12px; }
+.chips button.fmt span { font-size:11px; opacity:.75; font-variant-numeric:tabular-nums; }
+.chip.swatch { box-shadow:inset 0 0 0 1px #8886; }
+.chip.swatch.on { border-color:var(--acc); }
+textarea.txt { width:100%; background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:10px; font:16px/1.3 inherit; font-family:inherit; resize:vertical; margin:8px 0 4px; }
 .prompt { min-height:84px; resize:vertical; margin-top:6px; }
 #panel select { margin:4px 0; max-width:100%; }
 #curve { width:min(100%, 260px); aspect-ratio:1; background:var(--bg); border-radius:8px; touch-action:none; display:block; margin:6px 0; }

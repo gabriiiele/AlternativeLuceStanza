@@ -81,6 +81,8 @@ async function createBackup() {
         const b = await DB.get(store, p.id);
         if (b) await zip.add(`${store}/${p.id}`, b);
       }
+      const fm = await DB.get('depth', p.id + '#face');          // analisi del viso
+      if (fm) await zip.add(`face/${p.id}`, fm);
     }
     const manifest = { app: 'luce-stanza', version: 1, created: Date.now(), part: gi + 1, parts: groups.length,
       photos: group, albums, presets: userPresets(), settings };
@@ -115,6 +117,8 @@ async function restoreBackup(fileList) {
         const b = await zip.data(`${store}/${p.id}`);
         if (b) await DB.put(store, new Blob([await b.arrayBuffer()], { type: store === 'files' ? (p.type || '') : store === 'depth' ? 'image/png' : 'image/jpeg' }), p.id);
       }
+      const fm = await zip.data(`face/${p.id}`);
+      if (fm) await DB.put('depth', new Blob([await fm.arrayBuffer()], { type: 'image/png' }), p.id + '#face');
       await DB.put('photos', p); photos.push(p); added++;
     }
     for (const a of mf.albums || []) if (!albums.some(x => x.id === a.id)) { albums.push(a); await DB.put('albums', a); }

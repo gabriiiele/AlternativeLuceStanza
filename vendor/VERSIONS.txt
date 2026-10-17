@@ -4,3 +4,5 @@
 libraw-wasm 1.6.0 ISC
 @huggingface/transformers 4.3.1 Apache-2.0 (caricata dalla CDN jsdelivr al primo uso)
 @anthropic-ai/sdk 0.135.0 MIT
+@mediapipe/tasks-vision 0.10.21 Apache-2.0 (vendor/face) + modelli MediaPipe Face Landmarker e Selfie Multiclass (Apache-2.0)
+Font Montserrat, Playfair Display, Bebas Neue, Great Vibes, Cormorant Garamond (@fontsource 5.1.0, SIL OFL 1.1) in vendor/fonts

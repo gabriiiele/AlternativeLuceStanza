@@ -214,6 +214,29 @@ P('Città e Cibo', 'Prodotto Pulito', { exp: 0.25, contrast: 0.1, sat: -0.05, cl
 P('Città e Cibo', 'Macro Natura', { exp: 0.05, contrast: 0.15, vib: 0.4, clarity: 0.2, texture: 0.3, sharp: 0.5, glow: 0.1, curve: S_CURVE });
 P('Città e Cibo', 'Vecchia Cartolina', { exp: 0.05, contrast: -0.1, temp: 0.25, sat: -0.25, fade: 0.4, grain: 0.35, vig: 0.4, gsH: 40, gsS: 0.3, ghH: 50, ghS: 0.3, curve: MATTE });
 
+/* ===== MODA E BEAUTY =====
+   Look da editoriale e da campagna: pelle naturale, colori puliti. Alcuni includono un ritocco beauty leggero
+   (trucco, occhi e denti agiscono solo dopo "Riconosci viso"). */
+P('Moda e beauty', 'Editoriale pulito', { exp: 0.1, contrast: 0.12, hi: -0.25, sh: 0.15, wh: 0.1, vib: 0.1, sat: -0.05, clarity: 0.05, sharp: 0.25, curve: S_CURVE });
+P('Moda e beauty', 'Glow naturale', { exp: 0.15, contrast: -0.05, hi: -0.2, glow: 0.25, temp: 0.06, clarity: -0.1, texture: -0.1, bShine: 0.25, curve: LIFT });
+P('Moda e beauty', 'Pelle di porcellana', { exp: 0.2, contrast: -0.08, temp: -0.06, sat: -0.12, bSmooth: 0.35, bEven: 0.35, curve: LIFT,
+  hsl: { 0: [0, -0.2, 0.12], 1: [0, -0.25, 0.15] } });
+P('Moda e beauty', 'Dorato caldo', { temp: 0.25, tint: 0.04, vib: 0.15, gsH: 30, gsS: 0.2, ghH: 40, ghS: 0.25, glow: 0.15, hsl: { 1: [0, 0.1, 0.08] } });
+P('Moda e beauty', 'Glam serale', { exp: -0.1, contrast: 0.3, sh: -0.1, clarity: 0.15, vig: 0.3, sat: 0.05, gsH: 220, gsS: 0.2, ghH: 35, ghS: 0.2, bMakeup: 0.3, curve: S_STRONG });
+P('Moda e beauty', 'Clean beauty', { exp: 0.12, contrast: 0.05, hi: -0.15, wh: 0.15, sat: -0.05, texture: -0.1, bSmooth: 0.25, bEven: 0.25, bEyes: 0.2, sharp: 0.2 });
+P('Moda e beauty', 'B&N fashion', { mono: 1, contrast: 0.35, clarity: 0.2, grain: 0.12, curve: S_STRONG, bw: { 0: 0.3, 1: 0.4, 2: 0.2, 5: -0.3 } });
+P('Moda e beauty', 'Copertina rivista', { exp: 0.08, contrast: 0.25, hi: -0.3, sh: 0.2, clarity: 0.12, vib: 0.2, sharp: 0.35, vig: 0.15, bEyes: 0.25, bMakeup: 0.2 });
+P('Moda e beauty', 'Matte editoriale', { contrast: -0.1, fade: 0.25, sat: -0.15, gsH: 200, gsS: 0.12, ghH: 35, ghS: 0.15, curve: MATTE });
+P('Moda e beauty', 'Pastello soft', { exp: 0.2, contrast: -0.15, temp: 0.05, tint: 0.05, sat: -0.15, fade: 0.15, curve: LIFT, hsl: { 0: [0, -0.1, 0.1], 5: [0, -0.3, 0.15] } });
+P('Moda e beauty', 'Bronze estate', { exp: 0.05, contrast: 0.12, temp: 0.3, vib: 0.2, gsH: 25, gsS: 0.25, ghH: 45, ghS: 0.2, hsl: { 1: [0, 0.15, -0.05] } });
+P('Moda e beauty', 'Minimal freddo', { contrast: 0.1, wh: 0.1, temp: -0.15, sat: -0.2, ghH: 210, ghS: 0.1, curve: S_CURVE });
+P('Moda e beauty', 'Rosa cipria', { exp: 0.1, contrast: -0.05, temp: 0.05, tint: 0.12, sat: -0.05, ghH: 340, ghS: 0.15, gmH: 350, gmS: 0.08, curve: LIFT });
+P('Moda e beauty', 'Pellicola fashion', { contrast: 0.1, sat: -0.1, grain: 0.25, fade: 0.15, halation: 0.15, gsH: 190, gsS: 0.15, ghH: 40, ghS: 0.2, curve: FILM });
+P('Moda e beauty', 'Studio high-key', { exp: 0.35, contrast: 0.05, hi: -0.2, wh: 0.3, sh: 0.25, sat: -0.05 });
+P('Moda e beauty', 'Studio low-key', { exp: -0.2, contrast: 0.3, sh: -0.25, bl: -0.15, vig: 0.35, clarity: 0.1, curve: S_CURVE });
+P('Moda e beauty', 'Trucco in risalto', { vib: 0.15, clarity: 0.05, bMakeup: 0.45, bEyes: 0.35 });
+P('Moda e beauty', 'Luce di finestra', { exp: 0.1, contrast: -0.05, hi: -0.25, sh: 0.25, temp: 0.08, glow: 0.12, curve: LIFT });
+
 /* ===== Realismo =====
    Oltre certe soglie alcuni effetti rendono la foto "finta" (aloni, colori al neon, pelle di plastica, frange).
    I preset inclusi e i look generati vengono contenuti entro questi limiti; a mano si può sempre andare oltre. */
@@ -234,4 +257,4 @@ PRESET_DEFS.forEach(e => limitRealism(e.def));
 
 /* ===== Costruzione dei preset ===== */
 
-const PRESET_CATEGORIES = ['Cinema', 'Pellicola', 'Estetici', 'B&N', 'Ritratto', 'Paesaggio', 'Città e Cibo'];
+const PRESET_CATEGORIES = ['Moda e beauty', 'Cinema', 'Pellicola', 'Estetici', 'B&N', 'Ritratto', 'Paesaggio', 'Città e Cibo'];

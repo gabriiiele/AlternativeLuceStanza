@@ -5,7 +5,7 @@
    files   – file originale (Blob)
    decoded – RAW già decodificato (Blob PNG), per non ridecodificarlo a ogni apertura
    thumbs  – miniatura con le modifiche applicate (Blob JPEG)
-   depth   – mappa di profondità (Blob PNG)
+   depth   – mappa di profondità (Blob PNG); con chiave id + '#face' la mappa delle zone del viso
    albums  – album
    inbox   – foto ricevute da "Condividi" (riempito dal service worker) */
 

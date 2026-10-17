@@ -438,6 +438,7 @@ async function emptyTrash() {
 }
 async function deletePhoto(id) {
   for (const s of ['photos', 'files', 'decoded', 'thumbs', 'depth']) await DB.del(s, id);
+  await DB.del('depth', id + '#face');
   photos = photos.filter(p => p.id !== id); dropThumb(id);
 }
 

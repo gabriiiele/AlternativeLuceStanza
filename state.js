@@ -18,6 +18,7 @@ const newComp = (type, op = 'add') => ({
     color: { rgb: [0.5, 0.5, 0.5], range: 0.5 },
     lum: { lo: 0.6, hi: 1, smooth: 0.15 },
     depth: { lo: 0.6, hi: 1, smooth: 0.1 },
+    face: { part: 5 },
   })[type],
 });
 const newMask = (type, n) => ({ id: Date.now() + '-' + maskSeq++, name: 'Maschera ' + n, on: 1, invert: 0, amount: 1,
@@ -48,12 +49,12 @@ const defaults = () => ({
   calSh: 0, calRH: 0, calRS: 0, calGH: 0, calGS: 0, calBH: 0, calBS: 0,
   // sfocatura obiettivo
   // beauty
-  bSmooth: 0, bEven: 0, bBright: 0, bShine: 0,
+  bSmooth: 0, bEven: 0, bBright: 0, bShine: 0, bMakeup: 0, bEyes: 0, bTeeth: 0,
   lbAmt: 0, lbType: 'radial', lbX: 0.5, lbY: 0.5, lbSize: 0.15, lbAngle: 0, lbFeather: 0.3, lbBokeh: 0, lbFocus: 0.8,
   // geometria
   geo: { angle: 0, trot: 0, rot: 0, fx: 0, fy: 0, vert: 0, horiz: 0, distort: 0, aspAdj: 0, scale: 1, ox: 0, oy: 0,
     constrain: 1, ratio: 'orig', custom: [4, 5], crop: [0, 0, 1, 1], guides: [], grid: 'thirds' },
-  masks: [], spots: [], lutAmt: 1,
+  masks: [], spots: [], texts: [], lutAmt: 1,
 });
 
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -79,10 +80,13 @@ const GROUPS = {
   'Geometria e ritaglio': ['geo'],
   'Maschere': ['masks'],
   'Ritocco': ['spots'],
-  'Beauty': ['bSmooth', 'bEven', 'bBright', 'bShine'],
+  'Beauty': ['bSmooth', 'bEven', 'bBright', 'bShine', 'bMakeup', 'bEyes', 'bTeeth'],
   'LUT': ['lutAmt'],
+  'Testi': ['texts'],
 };
-const LOCAL_GROUPS = ['Geometria e ritaglio', 'Maschere', 'Ritocco'];
+const LOCAL_GROUPS = ['Geometria e ritaglio', 'Maschere', 'Ritocco', 'Testi'];
+// gruppi che un preset incluso non azzera (se il preset non li imposta): ritocchi della persona e scelte della foto
+const KEEP_ON_PRESET = [...LOCAL_GROUPS, 'Beauty', 'Sfocatura obiettivo'];
 
 function copyGroups(from, to, groups) {
   for (const g of groups) for (const k of GROUPS[g]) to[k] = clone(from[k]);

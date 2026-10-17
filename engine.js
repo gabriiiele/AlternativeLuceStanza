@@ -152,6 +152,7 @@ class Engine {
     this.maskTex = [this.makeTex(), this.makeTex()]; this.maskTex.forEach(t => this.blank(t));
     this.brushTex = this.makeTex(); this.blank(this.brushTex);
     this.depthTex = this.makeTex(); this.blank(this.depthTex); this.hasDepth = false;
+    this.faceTex = this.makeTex(); this.blank(this.faceTex); this.hasFace = false;
     this.size = [1, 1]; this.lutSize = 0;
     this.srcTex = this.imgTex;
     this.rtKey = ''; this.mkKey = ''; this.maskRes = [1, 1];
@@ -241,7 +242,7 @@ class Engine {
     this.mkA = this.target(...this.maskRes); this.mkB = this.target(...this.maskRes);
     this.maskTex = [this.mkA.tex, this.mkB.tex];
     this.srcTex = this.imgTex; this.rtKey = ''; this.mkKey = 'x'; this.blurDirty = true;
-    this.clearDepth();
+    this.clearDepth(); this.clearFace();
   }
 
   /* Mappa di profondità (canvas in scala di grigi, chiaro = vicino) */
@@ -253,6 +254,15 @@ class Engine {
     this.hasDepth = true; this.mkKey = 'x';
   }
   clearDepth() { this.blank(this.depthTex); this.hasDepth = false; this.mkKey = 'x'; }
+  /* Mappa delle zone del viso (ai.js faceMap): 3 fasce verticali con 3 zone ciascuna */
+  setFace(canvas) {
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, this.faceTex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+    this.hasFace = true; this.mkKey = 'x';
+  }
+  clearFace() { this.blank(this.faceTex); this.hasFace = false; this.mkKey = 'x'; }
 
   /* data: Uint8Array RGBA con indice (g * N*N + b * N + r) * 4 */
   setLut(data, n) {
@@ -311,20 +321,21 @@ class Engine {
     masks.slice(0, MAX_MASKS).forEach((m, i) => {
       if (!m.on || !m.comps.length) return;
       const comps = m.comps.slice(0, MAX_COMPS), A = new Float32Array(24), B = new Float32Array(24), C = new Float32Array(24);
-      const T = { linear: 1, radial: 2, brush: 3, color: 4, lum: 5, depth: 6 }, OP = { add: 0, sub: 1, int: 2 };
+      const T = { linear: 1, radial: 2, brush: 3, color: 4, lum: 5, depth: 6, face: 7 }, OP = { add: 0, sub: 1, int: 2 };
       comps.forEach((c, j) => {
         A.set([T[c.type], OP[c.op], c.invert ? 1 : 0, 0], j * 4);
         if (c.type === 'linear') B.set([c.x, c.y, c.angle * Math.PI / 180, c.width], j * 4);
         else if (c.type === 'radial') { B.set([c.x, c.y, c.angle * Math.PI / 180, c.feather], j * 4); C.set([c.rx, c.ry, 0, 0], j * 4); }
         else if (c.type === 'color') B.set([...c.rgb, c.range], j * 4);
         else if (c.type === 'lum' || c.type === 'depth') B.set([c.lo, c.hi, c.smooth, 0], j * 4);
+        else if (c.type === 'face') B.set([c.part, 0, 0, 0], j * 4);
       });
       if (brushes[i]) {
         gl.bindTexture(gl.TEXTURE_2D, this.brushTex);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, brushes[i]);
       } else this.blank(this.brushTex);
-      this.bind(1, this.brushTex, u.uBrush); this.bind(2, this.depthTex, u.uDepth);
+      this.bind(1, this.brushTex, u.uBrush); this.bind(2, this.depthTex, u.uDepth); this.bind(3, this.faceTex, u.uFace);
       this.bind(0, this.srcTex, u.uImg);
       gl.uniform1i(u.uNC, comps.length); gl.uniform1f(u.uInv, m.invert ? 1 : 0);
       gl.uniform4fv(u.uCA, A); gl.uniform4fv(u.uCB, B); gl.uniform4fv(u.uCC, C);
@@ -417,6 +428,9 @@ class Engine {
     this.bind(3, this.maskTex[0], u.uMask0); this.bind(4, this.maskTex[1], u.uMask1); this.bind(5, this.depthTex, u.uDepth);
     this.bind(6, this.blurT[0][0].tex, u.uBlur1); this.bind(7, this.blurT[1][0].tex, u.uBlur2);
     if (this.units > 8) this.bind(8, this.blurT[2][0].tex, u.uBlur3); else gl.uniform1i(u.uBlur3, 7);   // GPU con 8 unità: riusa il livello medio
+    const faceOn = this.hasFace && this.units > 9;
+    if (faceOn) this.bind(9, this.faceTex, u.uFace); else gl.uniform1i(u.uFace, 5);
+    gl.uniform1f(u.uHasFace, faceOn ? 1 : 0);
 
     const G = this.lastGeo = geoInfo(p.geo, sw, sh, !!opts.full);
     const f1 = (n, x) => gl.uniform1f(u[n], x), f2 = (n, a) => gl.uniform2fv(u[n], a);
@@ -448,6 +462,7 @@ class Engine {
     f1('uLbFocus', p.lbFocus);
     f1('uNoise', this.noise || 0);
     gl.uniform4fv(u.uBeauty, [p.bSmooth || 0, p.bEven || 0, p.bBright || 0, p.bShine || 0]);
+    gl.uniform4fv(u.uBeauty2, faceOn ? [p.bMakeup || 0, p.bEyes || 0, p.bTeeth || 0, 0] : [0, 0, 0, 0]);
     f1('uShowSkin', opts.showSkin ? 1 : 0);
     gl.uniform4fv(u.uBlurB, [p.lbSize, p.lbAngle * Math.PI / 180, p.lbFeather, p.lbBokeh]);
     f1('uLutAmt', this.lutSize > 0 ? p.lutAmt : 0); f1('uLutSize', this.lutSize || 2);

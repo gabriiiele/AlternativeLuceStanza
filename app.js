@@ -21,26 +21,30 @@ const TOOLS = [
   { label: 'Modifica', icon: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4', auto: true, sheet: false, subs: ['Luce', 'Curva', 'Colore', 'Mixer', 'Colore punto', 'Gradazione', 'B&N', 'Effetti', 'Dettagli', 'Ottica', 'Sfocatura', 'Calibrazione'] },
   { label: 'Ritaglia', icon: 'M6 2v16h16M2 6h16v16', subs: ['Ritaglio', 'Trasforma'] },
   { label: 'Maschere', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 3v18', subs: ['Maschere'] },
-  { label: 'Ritocco', icon: 'M4 20l10-10M14 4l6 6-4 4-6-6zM4 20h5', subs: ['Ritocco', 'Beauty'] },
+  { label: 'Ritocco', icon: 'M4 20l10-10M14 4l6 6-4 4-6-6zM4 20h5', subs: ['Ritocco', 'Beauty', 'Sfondo'] },
   { label: 'AI', icon: 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2zM19 15l1 2 2 1-2 1-1 2-1-2-2-1 2-1z', subs: ['Look AI', 'Super Resolution', 'Profondità'] },
+  { label: 'Pubblica', icon: 'M12 3v12M8 7l4-4 4 4M5 12v7h14v-7', subs: ['Social', 'Testo', 'Prima/Dopo'] },
 ];
-/* Modalità semplice: pochi strumenti essenziali, con il beauty in primo piano */
+/* Modalità semplice, pensata per foto di moda e beauty: look, regolazioni essenziali, beauty, sfondo, ritaglio, pubblicazione */
 const ICON_FACE = 'M12 3a8 9 0 1 0 0.01 0zM9 10h.01M15 10h.01M9 14.5c1.6 1.6 4.4 1.6 6 0';
+const ICON_BG = 'M3 3h18v18H3zM12 6.5a2.5 2.5 0 1 0 0.01 0zM7 21c.5-4 2.5-6 5-6s4.5 2 5 6';
 const TOOLS_SIMPLE = [
-  { label: 'Preset', icon: 'M4 6h16M4 12h16M4 18h10', subs: ['Preset'] },
+  { label: 'Look', icon: 'M4 6h16M4 12h16M4 18h10', subs: ['Preset', 'Look AI'] },
   { label: 'Regola', icon: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4', subs: ['Semplice'] },
   { label: 'Beauty', icon: ICON_FACE, subs: ['Beauty'] },
+  { label: 'Sfondo', icon: ICON_BG, subs: ['Sfondo'] },
   { label: 'Ritaglia', icon: 'M6 2v16h16M2 6h16v16', subs: ['Ritaglio'] },
-  { label: 'Look AI', icon: 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2zM19 15l1 2 2 1-2 1-1 2-1-2-2-1 2-1z', subs: ['Look AI'] },
+  { label: 'Pubblica', icon: 'M12 3v12M8 7l4-4 4 4M5 12v7h14v-7', subs: ['Social', 'Testo', 'Prima/Dopo'] },
 ];
 const activeTools = () => (appSettings.simpleMode ? TOOLS_SIMPLE : TOOLS);
 function setSimpleMode(on) {
   appSettings.simpleMode = !!on; saveAppSettings();
   if (!activeTools().some(t => t.subs?.includes(curTab))) curTab = on ? 'Semplice' : 'Luce';
+  if (on && presetCat === 'Tutti') presetCat = 'Moda e beauty';
   renderTabs(); renderPanel();
   toast(on ? 'Modalità semplice: solo gli strumenti essenziali' : 'Modalità completa: tutti gli strumenti');
 }
-const SUB_LABEL = { 'Trasforma': 'Geometria', 'Colore punto': 'Punto', 'Super Resolution': 'Super Res.', 'Calibrazione': 'Calibraz.' };
+const SUB_LABEL = { 'Preset': 'Preset', 'Trasforma': 'Geometria', 'Colore punto': 'Punto', 'Super Resolution': 'Super Res.', 'Calibrazione': 'Calibraz.' };
 
 /* Icone (tratti su griglia 24×24) */
 const circ = (x, y, r) => `M${x - r} ${y}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
@@ -69,7 +73,9 @@ const ICONS = {
   'Luce (maschera)': circ(12, 12, 4) + 'M12 2v3M12 19v3M2 12h3M19 12h3', 'Colore (maschera)': 'M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z',
   'Effetti (maschera)': 'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z',
 };
-ICONS.Beauty = ICON_FACE; ICONS.Semplice = 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4';
+ICONS.Beauty = ICON_FACE; ICONS.Semplice = 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4'; ICONS.Sfondo = ICON_BG;
+ICONS.Social = 'M4 4h16v16H4zM4 15l4-4 4 4 3-3 5 5M15.5 8.5h.01'; ICONS.Testo = 'M5 5h14M12 5v14M9 19h6';
+ICONS['Prima/Dopo'] = 'M4 4h16v16H4zM12 4v16M7 9l-2 3 2 3M17 9l2 3-2 3';
 const GROUP_COL = { 'Primario rosso': '#ff5252', 'Primario verde': '#4caf50', 'Primario blu': '#448aff' };
 function svgIcon(d, size = 22) {
   const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -330,7 +336,8 @@ function syncToolMode() {
   const m = params.masks[maskIdx];
   tool.mode = curTab === 'Ritaglio' ? 'crop' : curTab === 'Ritocco' ? 'spot' : curTab === 'Sfocatura' ? 'blur'
     : curTab === 'Trasforma' && guidedOn ? 'guide'
-    : curTab === 'Maschere' && m ? (brushMode && m.comps.some(c => c.type === 'brush') ? 'brush' : 'maskHandle') : null;
+    : curTab === 'Maschere' && m ? (brushMode && m.comps.some(c => c.type === 'brush') ? 'brush' : 'maskHandle')
+    : curTab === 'Testo' && params.texts.length ? 'text' : null;
   if (tool.mode === 'crop' && prev !== 'crop') { view.scale = 1; view.x = view.y = 0; }
   if (prev !== tool.mode) redraw();
 }
@@ -401,27 +408,55 @@ function renderPanel() {
 /* Luce */
 /* Modalità semplice: i controlli essenziali, con nomi comprensibili */
 PANELS['Semplice'] = p => {
-  p.append(actions(btn('Auto', autoTone, 'primary')),
+  p.append(actions(btn('Auto', autoTone, 'primary'), btn('Colori fedeli (tocca un grigio o un bianco)', () => startPick('Tocca un punto che dovrebbe essere grigio o bianco', ({ rgb }) => {
+      commit('Colori fedeli'); const t = wbFromColor(rgb); Object.assign(params, { wb: 'custom', temp: t.temp, tint: t.tint }); renderPanel();
+    }))),
     S('exp', 'Luminosità', -3, 3, 0.01, { bg: BG.exp }), S('contrast', 'Contrasto', -1, 1),
     S('hi', 'Alte luci', -1, 1), S('sh', 'Ombre', -1, 1),
-    S('temp', 'Calore', -1, 1, 0.01, { bg: BG.temp }), S('vib', 'Vividezza', -1, 1), S('sat', 'Saturazione', -1, 1, 0.01, { bg: BG.sat }),
-    S('clarity', 'Nitidezza dei dettagli', -1, 1), S('vig', 'Vignettatura', -1, 1),
+    S('temp', 'Calore', -1, 1, 0.01, { bg: BG.temp }), S('tint', 'Tinta (verde ↔ rosa)', -1, 1, 0.01, { bg: BG.tint }),
+    S('vib', 'Vividezza', -1, 1), S('sat', 'Saturazione', -1, 1, 0.01, { bg: BG.sat }),
+    S('texture', 'Texture', -1, 1), S('clarity', 'Definizione', -1, 1), S('glow', 'Bagliore morbido', 0, 1), S('vig', 'Vignettatura', -1, 1),
     note('Per tutti gli strumenti passa alla modalità completa dal menu ⋮.'));
 };
 
-/* Beauty: la pelle viene riconosciuta dal colore e ritoccata con la separazione delle frequenze */
-let showSkin = false;
-const BEAUTY_LEVELS = { none: [0, 0, 0, 0], soft: [0.35, 0.25, 0.08, 0.2], medium: [0.55, 0.4, 0.12, 0.35], strong: [0.8, 0.55, 0.18, 0.5] };
+/* Beauty: la pelle viene ritoccata con la separazione delle frequenze. Senza analisi del viso è riconosciuta dal colore;
+   con l'analisi (AI, MediaPipe) pelle, labbra, palpebre, occhi e denti sono zone precise e si sbloccano trucco, occhi e denti */
+let showSkin = false, faceBusy = false;
+const BEAUTY_KEYS = ['bSmooth', 'bEven', 'bBright', 'bShine', 'bMakeup', 'bEyes', 'bTeeth'];
+const BEAUTY_LEVELS = { none: [0, 0, 0, 0, 0, 0, 0], soft: [0.35, 0.25, 0.08, 0.2, 0.2, 0.2, 0.2],
+  medium: [0.55, 0.4, 0.12, 0.35, 0.35, 0.35, 0.3], strong: [0.8, 0.55, 0.18, 0.5, 0.5, 0.5, 0.45] };
+
+async function runFaceAnalysis(bar) {
+  if (faceBusy || !curSrc || !curPhoto) return false;
+  faceBusy = true; if (bar) bar.hidden = false;
+  try {
+    const r = await faceMap(curSrc, (v, label) => bar?.set(v, label));
+    setFaceCanvas(r.canvas);
+    await DB.put('depth', await new Promise(res => r.canvas.toBlob(res, 'image/png')), curPhoto.id + '#face');
+    toast(r.faces ? (r.faces === 1 ? 'Viso riconosciuto' : `${r.faces} visi riconosciuti`) : 'Nessun viso trovato: riconosciute pelle e persona');
+    return true;
+  } catch (e) { alert('Analisi del viso: ' + e.message); console.error(e); return false; }
+  finally { faceBusy = false; if (bar) bar.hidden = true; redraw(); }
+}
+
 PANELS['Beauty'] = p => {
-  const cur = [params.bSmooth, params.bEven, params.bBright, params.bShine];
+  const cur = BEAUTY_KEYS.map(k => params[k]);
   const level = Object.keys(BEAUTY_LEVELS).find(k => BEAUTY_LEVELS[k].every((v, i) => Math.abs(v - cur[i]) < 1e-3)) || '';
-  p.append(chips([['none', 'Nessuno'], ['soft', 'Naturale'], ['medium', 'Medio'], ['strong', 'Intenso']], level, v => {
-    commit('Beauty'); [params.bSmooth, params.bEven, params.bBright, params.bShine] = BEAUTY_LEVELS[v]; renderPanel();
-  }),
-  S('bSmooth', 'Levigatura pelle', 0, 1), S('bEven', 'Uniforma incarnato', 0, 1),
-  S('bBright', 'Luminosità pelle', -0.5, 1), S('bShine', 'Riduci lucidità', 0, 1),
-  actions(toggle('Mostra pelle rilevata', () => showSkin, v => { showSkin = v; }, true)),
-  note('Leviga imperfezioni e macchie conservando i pori e lasciando nitidi occhi e labbra. La pelle è riconosciuta dal colore: se l\'effetto tocca anche legno o sabbia, usa "Mostra pelle rilevata" e limita con una maschera.'));
+  const bar = progressBar(); bar.hidden = true;
+  p.append(chips([['none', 'Nessuno'], ['soft', 'Naturale'], ['medium', 'Medio'], ['strong', 'Intenso']], level, async v => {
+    commit('Beauty'); BEAUTY_KEYS.forEach((k, i) => { params[k] = BEAUTY_LEVELS[v][i]; }); renderPanel();
+    if (v !== 'none' && !engine.hasFace && !faceBusy) { await runFaceAnalysis(); renderPanel(); }   // la prima volta analizza il viso
+  }));
+  if (!engine.hasFace) p.append(actions(btn(faceBusy ? 'Analisi in corso…' : 'Riconosci viso (AI)', async () => { await runFaceAnalysis(bar); renderPanel(); }, 'primary')), bar,
+    note('L\'AI trova pelle, labbra, occhi, denti e capelli: il ritocco tocca solo la pelle e si sbloccano trucco, occhi e denti. Funziona offline, sul telefono.'));
+  p.append(group('Pelle', true, S('bSmooth', 'Levigatura pelle', 0, 1), S('bEven', 'Uniforma incarnato', 0, 1),
+    S('bBright', 'Luminosità pelle', -0.5, 1), S('bShine', 'Riduci lucidità', 0, 1)));
+  if (engine.hasFace) p.append(group('Trucco, occhi e denti', true, S('bMakeup', 'Esalta trucco', 0, 1), S('bEyes', 'Occhi luminosi', 0, 1),
+    S('bTeeth', 'Denti più bianchi', 0, 1)));
+  p.append(actions(toggle(engine.hasFace ? 'Mostra zone riconosciute' : 'Mostra pelle rilevata', () => showSkin, v => { showSkin = v; }, true),
+    engine.hasFace ? btn(faceBusy ? 'Analisi in corso…' : 'Rianalizza viso', async () => { await runFaceAnalysis(bar); renderPanel(); }) : null), engine.hasFace ? bar : null,
+    note(engine.hasFace ? 'Leviga le imperfezioni conservando i pori. Esalta trucco agisce su labbra e palpebre, Occhi su iride e bianco dell\'occhio.'
+      : 'Senza analisi la pelle è riconosciuta dal colore: può toccare anche capelli chiari, legno o sabbia.'));
 };
 
 PANELS['Luce'] = p => {
@@ -744,7 +779,7 @@ PANELS['Sfocatura'] = p => {
 };
 
 /* Maschere */
-const MASK_TYPES = [['brush', 'Pennello'], ['linear', 'Sfumatura lineare'], ['radial', 'Sfumatura radiale'], ['color', 'Intervallo colore'], ['lum', 'Intervallo luminanza'], ['depth', 'Intervallo profondità']];
+const MASK_TYPES = [['brush', 'Pennello'], ['linear', 'Sfumatura lineare'], ['radial', 'Sfumatura radiale'], ['color', 'Intervallo colore'], ['lum', 'Intervallo luminanza'], ['depth', 'Intervallo profondità'], ['face', 'Persona e viso (AI)']];
 const selectedComp = () => params.masks[maskIdx]?.comps[compIdx];
 
 PANELS['Maschere'] = p => {
@@ -762,6 +797,7 @@ PANELS['Maschere'] = p => {
       params.masks.push(newMask(sel.value, params.masks.length + 1));
       maskIdx = params.masks.length - 1; compIdx = 0; brushMode = sel.value === 'brush';
       if (sel.value === 'color' || sel.value === 'lum') pickForComp();
+      if (sel.value === 'face') { params.masks[maskIdx].name = FACE_PARTS[5]; if (!engine.hasFace) runFaceAnalysis().then(() => renderPanel()); }
       renderPanel();
     };
     p.append(sel);
@@ -802,6 +838,7 @@ PANELS['Maschere'] = p => {
       const [op, t] = sel.value.split(':');
       commit('Componente maschera'); m.comps.push(newComp(t, op)); compIdx = m.comps.length - 1;
       brushMode = t === 'brush'; if (t === 'color' || t === 'lum') pickForComp();
+      if (t === 'face' && !engine.hasFace) runFaceAnalysis().then(() => renderPanel());
       renderPanel();
     };
     p.append(sel);
@@ -819,6 +856,14 @@ PANELS['Maschere'] = p => {
       p.append(actions(btn('Campiona profondità', () => startPick('Tocca la zona da selezionare', ({ ic }) => {
         const d = depthAt(ic); commit('Campiona'); c.lo = Math.max(0, d - 0.12); c.hi = Math.min(1, d + 0.12); renderPanel();
       }))));
+    }
+    if (c.type === 'face') {
+      if (!engine.hasFace) p.append(note(faceBusy ? 'Analisi del viso in corso…' : 'Serve l\'analisi del viso.'), actions(btn('Riconosci viso (AI)', () => runFaceAnalysis().then(() => renderPanel()), 'primary')));
+      p.append(chips(FACE_PARTS.map((n, i) => [i, n]), c.part, v => {
+        commit('Maschera'); c.part = +v;
+        if (m.comps.length === 1 && (FACE_PARTS.includes(m.name) || /^Maschera \d+$/.test(m.name))) m.name = FACE_PARTS[c.part];
+        renderPanel();
+      }));
     }
     if (c.type === 'brush') {
       p.append(actions(toggle('Dipingi sull\'immagine', () => brushMode, v => { brushMode = v; }, true),
@@ -1128,9 +1173,8 @@ function presetCats() {
 /* Valori del preset applicati alla foto con intensità amt */
 function presetResult(entry, amt) {
   if (!entry.user) {
-    const np = buildPreset(entry.def, amt);
-    copyGroups(params, np, LOCAL_GROUPS); np.lutAmt = params.lutAmt;
-    return np;
+    const base = copyGroups(params, defaults(), KEEP_ON_PRESET); base.lutAmt = params.lutAmt;
+    return buildPreset(entry.def, amt, base);
   }
   return buildPreset(entry.def, amt, params);   // preset utente: tocca solo le impostazioni salvate
 }
@@ -1165,6 +1209,10 @@ PANELS['Preset'] = p => {
       card.onclick = () => {
         if (presetManage && entry.user) { managePreset(entry); return; }
         if (!loaded) return;
+        if (card.classList.contains('on') && presetBase) {     // secondo tocco sul preset attivo: lo toglie
+          commit('Togli preset'); params = clone(presetBase); curPreset = null; presetBase = null;
+          card.classList.remove('on'); redraw(); syncButtons(); return;
+        }
         commit('Preset: ' + entry.name); curPreset = entry; params = presetResult(entry, presetAmt);
         grid.querySelectorAll('.preset').forEach(b => b.classList.remove('on')); card.classList.add('on');
         presetBase = clone(history.undo[history.undo.length - 1].state);
@@ -1375,7 +1423,8 @@ PANELS['Esporta'] = p => {
     return el('div', { className: 'row' }, el('label', { textContent: label }), i, el('span'));
   };
   const fmts = [['image/jpeg', 'JPEG'], ['image/png', 'PNG'], ['image/tiff', 'TIFF (8 bit)'], ...(supportsWebp ? [['image/webp', 'WebP']] : []), ...(supportsAvif ? [['image/avif', 'AVIF']] : [])];
-  p.append(section('File'), sel('Formato', fmts, 'fmt', renderPanel),
+  p.append(actions(btn('Formati per Instagram, Facebook, TikTok… →', () => showTab('Social'))),
+    section('File'), sel('Formato', fmts, 'fmt', renderPanel),
     ['image/jpeg', 'image/webp', 'image/avif'].includes(o.fmt) ? slider('Qualità', 0.3, 1, 0.01, () => o.quality, v => { o.quality = v; }, { neutral: 0.92 }) : null,
     text('Nome file', 'name'), note('Segnaposto: {nome} {data} {ora} {n}'),
     section('Dimensioni'), sel('Ridimensiona', [['orig', 'Originale'], ['long', 'Lato lungo (px)'], ['short', 'Lato corto (px)'], ['w', 'Larghezza (px)'], ['h', 'Altezza (px)'], ['pct', 'Percentuale']], 'sizeMode', renderPanel),
@@ -1405,6 +1454,218 @@ async function exportImage() {
   catch (e) { alert('Errore di esportazione: ' + e.message); }
   redraw();
 }
+
+/* ---------- Analisi del viso: dati in memoria (inquadratura intelligente, collage, sfondo) ---------- */
+
+let faceData = null;
+function setFaceCanvas(c) {
+  engine.setFace(c);
+  faceData = { w: c.width, h: c.height / 3, d: c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data };
+}
+/* Baricentro e riquadro di una zona (fascia 0-2, canale 0-2) in coordinate immagine (y in giù) */
+function faceStats(band, ch, thr = 0.5) {
+  if (!faceData) return null;
+  const { w, h, d } = faceData;
+  let s = 0, sx = 0, sy = 0, x0 = w, y0 = h, x1 = 0, y1 = 0;
+  for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) {
+    const v = d[((band * h + y) * w + x) * 4 + ch] / 255; if (v < thr) continue;
+    s += v; sx += x * v; sy += y * v; x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+  }
+  if (s < 3) return null;
+  return { c: [sx / s / w, sy / s / h], box: [x0 / w, y0 / h, (x1 + 2) / w, (y1 + 2) / h] };
+}
+/* Da coordinate immagine a coordinate della foto finita (dopo ritaglio, rotazione, prospettiva) */
+function icToOut(p, ic) {
+  const G = geoInfo(p.geo, engine.size[0], engine.size[1]), o = outUV(G, [ic[0], 1 - ic[1]]);
+  return [o[0], 1 - o[1]];
+}
+function boxToOut(p, b) {
+  const pts = [[b[0], b[1]], [b[2], b[1]], [b[0], b[3]], [b[2], b[3]]].map(q => icToOut(p, q));
+  return [Math.min(...pts.map(q => q[0])), Math.min(...pts.map(q => q[1])), Math.max(...pts.map(q => q[0])), Math.max(...pts.map(q => q[1]))];
+}
+/* Punto da tenere al centro quando un formato social ritaglia la foto: il viso, altrimenti la persona */
+function exportFocus(p) {
+  const f = faceStats(2, 2) || faceStats(1, 2);
+  return f ? icToOut(p, f.c).map(v => Math.max(0, Math.min(1, v))) : [0.5, 0.5];
+}
+
+/* ---------- Pubblica: formati social ---------- */
+
+async function saveFiles(files) {
+  if (files.length > 1 && navigator.canShare && navigator.canShare({ files })) {
+    try { await navigator.share({ files }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  for (const f of files) await saveFile(f);
+}
+function saveExportOpts() { try { localStorage.setItem('exportOpts', JSON.stringify({ ...exportOpts, wmImage: null })); } catch { /* spazio pieno */ } }
+
+PANELS['Social'] = p => {
+  const o = exportOpts, sel = new Set(o.socialSel || []);
+  const [fw, fh] = loaded ? engine.outputSize(params) : [1, 1];
+  p.append(note('Scegli uno o più formati: la foto viene preparata alla dimensione giusta per ciascuno.'));
+  for (const g of [...new Set(SOCIAL.map(t => t.group))]) {
+    const row = el('div', { className: 'chips' });
+    for (const t of SOCIAL.filter(x => x.group === g)) {
+      const [w, h] = socialSize(t, fw, fh);
+      row.append(el('button', { className: 'fmt' + (sel.has(t.id) ? ' on' : ''), onclick: () => {
+        sel.has(t.id) ? sel.delete(t.id) : sel.add(t.id); o.socialSel = [...sel]; saveExportOpts(); renderPanel();
+      } }, el('b', { textContent: t.name }), el('span', { textContent: `${w} × ${h}` })));
+    }
+    p.append(section(g), row);
+  }
+  const fixed = [...sel].map(id => SOCIAL.find(t => t.id === id)).filter(t => t && t.w);
+  if (fixed.length) {
+    p.append(section('Se le proporzioni sono diverse'),
+      chips([['crop', 'Ritaglia (segue il viso)'], ['pad', 'Bordi'], ['blur', 'Sfondo sfocato']], o.fit, v => { o.fit = v; saveExportOpts(); renderPanel(); }));
+    if (o.fit === 'pad') p.append(el('div', { className: 'chips' }, ...['#ffffff', '#f3efe9', '#000000', '#1c1c1c'].map(c =>
+      el('button', { className: 'chip swatch' + (o.padColor === c ? ' on' : ''), style: `background:${c}`, title: c, onclick: () => { o.padColor = c; saveExportOpts(); renderPanel(); } }))));
+    if (o.fit === 'crop' && !engine.hasFace) p.append(note('Con "Riconosci viso" (Beauty) il ritaglio resta centrato sul viso; senza, sul centro della foto.'));
+    if (fixed.length === 1) p.append(actions(btn('Inquadra a mano per ' + fixed[0].name, () => {
+      const t = fixed[0], [W, H] = socialSize(t, fw, fh);
+      commit('Proporzioni'); params.geo.ratio = 'custom'; params.geo.custom = [W, H]; resetCrop(); showTab('Ritaglio');
+      toast('Sposta il riquadro, poi torna su Pubblica');
+    })));
+  }
+  p.append(section('Logo o firma'), chips([['none', 'Nessuno'], ['text', 'Testo'], ['image', 'Logo (immagine)']], o.wm, v => { o.wm = v; saveExportOpts(); renderPanel(); }));
+  if (o.wm === 'text') {
+    const i = el('input', { type: 'text', value: o.wmText, className: 'search', placeholder: '@profilo' });
+    i.oninput = () => { o.wmText = i.value; saveExportOpts(); };
+    p.append(i);
+  }
+  if (o.wm === 'image') p.append(actions(btn(o.wmImage ? 'Cambia logo' : 'Scegli il logo (PNG trasparente)', () => $('fileWm').click())));
+  if (o.wm !== 'none') p.append(chips([['tl', '↖'], ['tr', '↗'], ['b', '↓ centro'], ['bl', '↙'], ['br', '↘']], o.wmPos, v => { o.wmPos = v; saveExportOpts(); renderPanel(); }),
+    slider('Dimensione', 1, 25, 0.5, () => o.wmSize, v => { o.wmSize = v; saveExportOpts(); }, { neutral: 4 }),
+    slider('Opacità', 0.05, 1, 0.01, () => o.wmOpacity, v => { o.wmOpacity = v; saveExportOpts(); }, { neutral: 0.6 }));
+  p.append(actions(btn(sel.size > 1 ? `Esporta ${sel.size} formati` : 'Esporta', async () => {
+    if (!loaded || !sel.size) { toast('Scegli almeno un formato'); return; }
+    toast('Preparazione…');
+    try {
+      const files = [];
+      for (const id of sel) files.push(await buildExport(params, { ...o, target: id }));
+      await saveFiles(files); toast(files.length > 1 ? `${files.length} foto pronte` : 'Esportato: ' + files[0].name);
+    } catch (e) { alert('Errore di esportazione: ' + e.message); console.error(e); }
+    redraw();
+  }, 'primary')), note('JPEG sRGB con una leggera nitidezza per lo schermo. Le scritte della sezione Testo vengono incluse.'));
+};
+
+/* ---------- Pubblica: scritte ---------- */
+
+let textIdx = 0, textBoxes = [];
+const TEXT_TEMPLATES = [
+  ['Nome e profilo', () => newText({ text: 'NOME COGNOME\n@profilo', font: 'elegante', size: 0.055, y: 0.88, spacing: 0.08 })],
+  ['Prodotti usati', () => newText({ text: 'Prodotti usati\nFondotinta · Rossetto · Mascara', font: 'moderno', size: 0.032, x: 0.5, y: 0.9, box: 1, boxColor: '#000000', boxOpacity: 0.4 })],
+  ['Promozione', () => newText({ text: '-20%', font: 'titolo', size: 0.12, x: 0.2, y: 0.14, box: 1, boxColor: '#e8505b', boxOpacity: 0.9 })],
+  ['Titolo copertina', () => newText({ text: 'BEAUTY ISSUE', font: 'elegante', bold: 1, size: 0.11, y: 0.1, spacing: 0.04, shadow: 0.3 })],
+  ['Firma', () => newText({ text: 'Make-up by Nome', font: 'firma', size: 0.07, x: 0.72, y: 0.92 })],
+  ['Testo libero', () => newText({ text: 'Scrivi qui', y: 0.5 })],
+];
+PANELS['Testo'] = p => {
+  const L = params.texts;
+  textIdx = Math.min(textIdx, L.length - 1);
+  const add = el('select');
+  add.append(el('option', { textContent: '+ Aggiungi una scritta…', value: '' }), ...TEXT_TEMPLATES.map(([n], i) => el('option', { value: i, textContent: n })));
+  add.onchange = () => {
+    if (add.value === '') return;
+    commit('Aggiungi scritta'); L.push(TEXT_TEMPLATES[+add.value][1]()); textIdx = L.length - 1; renderPanel();
+  };
+  if (L.length) p.append(chips(L.map((t, i) => [i, (t.text.split('\n')[0] || 'Scritta').slice(0, 18)]), textIdx, v => { textIdx = +v; renderPanel(); }));
+  p.append(add);
+  const t = L[textIdx];
+  if (!t) { p.append(note('Nome, @profilo, prodotti usati, promozioni: le scritte compaiono sulla foto e nelle esportazioni. Trascinale sull\'immagine per spostarle.')); return; }
+  const area = el('textarea', { className: 'txt', value: t.text, rows: 2 });
+  let typing = false;
+  area.oninput = () => { if (!typing) { commit('Testo'); typing = true; } t.text = area.value; drawOverlay(); };
+  area.onblur = () => { typing = false; renderTabs(); };
+  const T2 = (k, label, min, max, step = 0.01, neutral = 0) => slider(label, min, max, step, () => t[k], v => { t[k] = v; drawOverlay(); }, { neutral });
+  const flag = (k, label) => toggle(label, () => !!t[k], v => { t[k] = v ? 1 : 0; });
+  const colors = ['#ffffff', '#000000', '#f3e3d3', '#d4af37', '#e8505b', '#c8a2c8'];
+  const ci = el('input', { type: 'color', value: t.color }); ci.oninput = () => { t.color = ci.value; drawOverlay(); }; ci.onchange = () => commit('Colore testo');
+  p.append(area,
+    chips(Object.entries(TEXT_FONTS).map(([k, v]) => [k, v[1]]), t.font, v => { commit('Carattere'); t.font = v; renderPanel(); }),
+    T2('size', 'Dimensione', 0.015, 0.25, 0.001, 0.06),
+    el('div', { className: 'chips' }, ...colors.map(c => el('button', { className: 'chip swatch' + (t.color === c ? ' on' : ''), style: `background:${c}`, title: c,
+      onclick: () => { commit('Colore testo'); t.color = c; renderPanel(); } })), ci),
+    actions(flag('bold', 'Grassetto'), flag('italic', 'Corsivo'), flag('upper', 'MAIUSCOLO'), flag('box', 'Riquadro')),
+    chips([['left', 'Sinistra'], ['center', 'Centro'], ['right', 'Destra']], t.align, v => { commit('Allineamento'); t.align = v; renderPanel(); }),
+    group('Posizione e stile', false,
+      chips([['tl', '↖'], ['t', '↑'], ['tr', '↗'], ['c', '●'], ['bl', '↙'], ['b', '↓'], ['br', '↘']], '', v => {
+        commit('Posizione testo'); t.x = v.includes('l') ? 0.22 : v.includes('r') ? 0.78 : 0.5; t.y = v.includes('t') ? 0.1 : v.includes('b') ? 0.9 : 0.5; renderPanel();
+      }),
+      T2('spacing', 'Spaziatura lettere', -0.05, 0.5, 0.005), T2('shadow', 'Ombra', 0, 1, 0.01, 0.4), T2('opacity', 'Opacità', 0.1, 1, 0.01, 1),
+      t.box ? T2('boxOpacity', 'Opacità riquadro', 0.05, 1, 0.01, 0.45) : null,
+      t.box ? el('div', { className: 'row' }, el('label', { textContent: 'Colore riquadro' }),
+        Object.assign(el('input', { type: 'color', value: t.boxColor }), { oninput: e => { t.boxColor = e.target.value; drawOverlay(); }, onchange: () => commit('Riquadro') }), el('span')) : null),
+    actions(btn('Duplica', () => { commit('Duplica scritta'); L.splice(textIdx + 1, 0, { ...clone(t), id: newText().id, y: Math.min(0.95, t.y + 0.08) }); textIdx++; renderPanel(); }),
+      btn('Elimina', () => { commit('Elimina scritta'); L.splice(textIdx, 1); textIdx = Math.max(0, textIdx - 1); renderPanel(); })),
+    note('Trascina la scritta sull\'immagine per spostarla.'));
+};
+
+/* ---------- Pubblica: prima/dopo e collage ---------- */
+
+let baLayout = 'side', baLabels = true;
+PANELS['Prima/Dopo'] = p => {
+  p.append(section('Prima e dopo'), note('Per mostrare il tuo lavoro: la foto originale accanto a quella ritoccata, con il logo se impostato.'),
+    chips([['side', 'Affiancate'], ['stack', 'Una sopra l\'altra'], ['split', 'Metà e metà']], baLayout, v => { baLayout = v; renderPanel(); }),
+    actions(toggle('Scritte "Prima" e "Dopo"', () => baLabels, v => { baLabels = v; }, true),
+      btn('Crea prima/dopo', async () => {
+        if (!loaded) return; toast('Preparazione…');
+        try { await saveFile(await buildBeforeAfter(params, baLayout, baLabels)); } catch (e) { alert(e.message); console.error(e); }
+        redraw();
+      }, 'primary')),
+    section('Collage del look'), note('Foto intera con i dettagli di occhi e labbra, in formato 4:5 per Instagram.'),
+    actions(btn(faceBusy ? 'Analisi in corso…' : 'Crea collage', async () => {
+      if (!loaded) return;
+      if (!engine.hasFace && !(await runFaceAnalysis())) return;
+      const eyes = faceStats(0, 2, 0.3), lips = faceStats(0, 1, 0.3);
+      if (!eyes || !lips) { alert('Non trovo occhi e labbra in questa foto: serve un viso ben visibile.'); return; }
+      const grow = (b, k) => { const cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2, w = (b[2] - b[0]) * k / 2, h = (b[3] - b[1]) * k / 2; return [cx - w, cy - h, cx + w, cy + h]; };
+      toast('Preparazione…');
+      const f = exportFocus(params), main = [0, f[1] - 0.01, 1, f[1] + 0.01];   // tutta la larghezza, centrata sul viso
+      try { await saveFile(await buildCollage(params, { main, eyes: boxToOut(params, grow(eyes.box, 1.3)), lips: boxToOut(params, grow(lips.box, 1.6)) })); }
+      catch (e) { alert(e.message); console.error(e); }
+      redraw(); renderPanel();
+    }, 'primary')));
+};
+
+/* ---------- Sfondo: sfocato, più scuro o meno colorato, per far risaltare la persona ---------- */
+
+const BG_MASK = 'Sfondo (AI)';
+let depthFromPerson = false;
+function bgMask(create) {
+  let m = params.masks.find(x => x.name === BG_MASK);
+  if (!m && create) {
+    if (params.masks.length >= MAX_MASKS) { toast('Hai già il numero massimo di maschere'); return null; }
+    m = newMask('face', params.masks.length + 1); m.name = BG_MASK; m.comps[0].part = 5; m.comps[0].invert = 1;
+    params.masks.push(m);
+  }
+  return m;
+}
+/* Senza mappa di profondità si usa la sagoma della persona come profondità (persona vicina, sfondo lontano) */
+function personDepth() {
+  const { w, h, d } = faceData, c = canvasOf(w, h), x = c.getContext('2d'), id = x.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) { const v = 25 + Math.round(d[(h * w + i) * 4 + 2] * 0.8); id.data.set([v, v, v, 255], i * 4); }
+  x.putImageData(id, 0, 0); setDepthCanvas(c); depthFromPerson = true;
+  c.toBlob(b => curPhoto && DB.put('depth', b, curPhoto.id));
+}
+PANELS['Sfondo'] = p => {
+  const ready = engine.hasDepth || engine.hasFace;
+  if (!ready) {
+    const bar = progressBar(); bar.hidden = true;
+    p.append(note('L\'AI riconosce la persona e separa lo sfondo. Funziona offline, sul telefono.'),
+      actions(btn(faceBusy ? 'Analisi in corso…' : 'Riconosci la persona (AI)', async () => { await runFaceAnalysis(bar); renderPanel(); }, 'primary')), bar);
+    return;
+  }
+  const blur = slider('Sfocatura dello sfondo', 0, 1, 0.01, () => (params.lbType === 'depth' ? params.lbAmt : 0), v => {
+    if (!engine.hasDepth) personDepth();
+    if (params.lbType !== 'depth' || !params.lbAmt) Object.assign(params, { lbType: 'depth', lbFocus: depthFromPerson ? 0.9 : subjectDepth(), lbSize: 0.1, lbFeather: 0.3, lbBokeh: 0.25 });
+    params.lbAmt = v;
+  });
+  const adj = (k, label, min, max) => slider(label, min, max, 0.01, () => bgMask(false)?.adj[k] || 0, v => { const m = bgMask(true); if (m) m.adj[k] = v; });
+  p.append(blur);
+  if (engine.hasFace) p.append(adj('exp', 'Luminosità dello sfondo', -2, 1), adj('sat', 'Colore dello sfondo', -1, 0.5), adj('clarity', 'Dettaglio dello sfondo', -1, 0.5));
+  else p.append(note('Per schiarire, scurire o togliere colore allo sfondo serve "Riconosci la persona" (Beauty → Riconosci viso).'));
+  p.append(note('La sfocatura usa la mappa di profondità se c\'è (AI → Profondità), altrimenti la sagoma della persona.'));
+};
 
 /* ---------- Menu ⋮ in alto ---------- */
 
@@ -1519,9 +1780,12 @@ async function loadIntoEditor(rec, show = true) {
   thumbEngine.setImage(ts, ts.width, ts.height); thumbCache.clear();
   setAnalysisImage(src.canvas);
   for (const k in brushCache) delete brushCache[k];
-  depthData = null;
+  depthData = null; depthFromPerson = false;
   const dep = await DB.get('depth', rec.id);
   if (dep) setDepthCanvas(scaledCanvas(await decodeImage(dep), 1024));
+  const fm = await DB.get('depth', rec.id + '#face');
+  faceData = null;
+  if (fm) setFaceCanvas(scaledCanvas(await decodeImage(fm), 4096));
   loaded = true;
   params = Object.assign(defaults(), rec.edits ? clone(rec.edits) : {});
   history.undo = clone(rec.history || []); history.redo = [];
@@ -1611,4 +1875,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveCurrent(); });
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
   await initLibrary();
+  if (appSettings.simpleMode) presetCat = 'Moda e beauty';
+  loadTextFonts().then(() => loaded && drawOverlay());
 });

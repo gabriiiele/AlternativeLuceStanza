@@ -128,3 +128,15 @@ Una vera navigazione della Galleria richiederebbe di impacchettare l'app come AP
 | Sfocatura con profondità senza alone, bokeh morbido, rumore del sensore reintegrato, mappa rifinita sui bordi | ✅ |
 | Azioni rapide con la profondità: sfondo sfocato, soggetto in risalto, foschia atmosferica, maschere | ✅ |
 | Compatibilità iPhone (Safari): limiti dei canvas, HEIC/orientamento, icona Home, niente zoom sui campi, avviso installazione | ✅ (provata con simulazione, non su iPhone reale) |
+
+## Moda, beauty e pubblicazione
+| Funzione | Stato |
+|---|---|
+| Analisi del viso con AI (MediaPipe, offline): pelle, labbra, palpebre, occhi, denti, capelli, persona | ✅ |
+| Beauty: levigatura solo sulla pelle vera, esalta trucco, occhi luminosi, denti più bianchi | ✅ |
+| Maschere AI: persona, pelle, capelli, labbra, occhi, denti, palpebre, sopracciglia, viso | ✅ |
+| Sfondo: sfocato, più scuro, meno colorato (sagoma della persona o mappa di profondità) | ✅ |
+| 18 preset "Moda e beauty"; secondo tocco su un preset lo toglie | ✅ |
+| Formati social (Instagram, TikTok, Facebook, Pinterest, X, LinkedIn, YouTube, WhatsApp, web, stampa) con ritaglio sul viso, bordi o sfondo sfocato; più formati insieme | ✅ |
+| Scritte sulla foto (5 caratteri, modelli: nome e profilo, prodotti, promozione, titolo, firma) | ✅ |
+| Prima/dopo (affiancate, sovrapposte, metà e metà), collage del look, logo o firma | ✅ |

@@ -403,6 +403,15 @@ function toolDown(e) {
     if (!part) return false;
     tool.drag = { part, before: clone(params) }; return true;
   }
+  if (tool.mode === 'text') {                       // scritte: tocco su una scritta = selezione e spostamento
+    const [sx, sy] = T.stageXY(e);
+    const hit = textBoxes.slice().reverse().find(b => sx >= b.x && sx <= b.x + b.w && sy >= b.y && sy <= b.y + b.h);
+    if (!hit) return false;
+    const i = params.texts.findIndex(t => t.id === hit.id); if (i < 0) return false;
+    if (i !== textIdx) { textIdx = i; renderPanel(); }
+    const t = params.texts[i];
+    tool.drag = { x, y, tx: t.x, ty: t.y, before: clone(params) }; return true;
+  }
   if (tool.mode === 'blur') { tool.drag = { before: clone(params) }; toolMove(e); return true; }
   if (tool.mode === 'guide') { const ic = T.toIc(x, y); guideDraft = [ic[0], ic[1], ic[0], ic[1]]; tool.drag = { before: clone(params) }; return true; }
   return false;
@@ -436,12 +445,17 @@ function toolMove(e) {
     redraw();
   }
   else if (tool.mode === 'guide') { const ic = T.toIc(x, y); guideDraft[2] = ic[0]; guideDraft[3] = ic[1]; drawOverlay(); }
+  else if (tool.mode === 'text') {
+    const r = T.rect(), t = params.texts[textIdx]; if (!t) return;
+    t.x = Math.max(0, Math.min(1, d.tx + (x - d.x) / r.width)); t.y = Math.max(0, Math.min(1, d.ty + (y - d.y) / r.height));
+    drawOverlay();
+  }
 }
 
 function toolUp() {
   const d = tool.drag; if (!d) return;
   tool.drag = null;
-  const labels = { crop: 'Ritaglio', brush: 'Pennello', spot: 'Ritocco', maskHandle: 'Maschera', blur: 'Sfocatura', guide: 'Guida Upright' };
+  const labels = { crop: 'Ritaglio', brush: 'Pennello', spot: 'Ritocco', maskHandle: 'Maschera', blur: 'Sfocatura', guide: 'Guida Upright', text: 'Sposta scritta' };
   if (tool.mode === 'brush') {
     const m = params.masks[maskIdx];
     if (m) { m.strokes.push(d.stroke); const b = brushCache[m.id]; if (b) { b.live = false; b.sig = m.strokes.length + ':' + d.stroke.pts.length; } }
@@ -549,6 +563,14 @@ function drawOverlay() {
     const ctr = T.fromIc([params.lbX, params.lbY]);
     ctx.strokeStyle = '#fff'; ctx.fillStyle = '#4da3ff';
     ctx.beginPath(); ctx.arc(ctr[0], ctr[1], 8, 0, 7); ctx.fill();
+  }
+
+  // scritte sulla foto (come verranno esportate); con la sezione Testo aperta, quella scelta è riquadrata
+  textBoxes = [];
+  if (params.texts?.length && tool.mode !== 'crop') {
+    textBoxes = drawTexts(ctx, r.width, r.height, params.texts, L, Tp);
+    const b = curTab === 'Testo' && textBoxes[textIdx];
+    if (b) { ctx.save(); ctx.strokeStyle = '#4da3ff'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]); ctx.strokeRect(b.x, b.y, b.w, b.h); ctx.restore(); }
   }
 
   if (tool.mode === 'guide') {
