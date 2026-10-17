@@ -1,7 +1,7 @@
-const CACHE = 'luce-stanza-v16';
+const CACHE = 'luce-stanza-v17';
 const FILES = ['./', 'index.html', 'style.css', 'manifest.json', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'compat.js', 'native.js', 'shaders.js', 'engine.js', 'profiles.js', 'presets.js',
   'state.js', 'db.js', 'tools.js', 'export.js', 'ai.js', 'backup.js', 'merge.js', 'camera.js', 'app.js', 'library.js',
-  'vendor/tf.min.js', 'vendor/anthropic-sdk.js',
+  'vendor/tf.min.js', 'vendor/tf-backend-webgpu.min.js', 'vendor/anthropic-sdk.js',
   'vendor/fonts/montserrat-latin-400-normal.woff2', 'vendor/fonts/montserrat-latin-600-normal.woff2', 'vendor/fonts/playfair-display-latin-400-normal.woff2',
   'vendor/fonts/playfair-display-latin-700-normal.woff2', 'vendor/fonts/playfair-display-latin-400-italic.woff2', 'vendor/fonts/bebas-neue-latin-400-normal.woff2',
   'vendor/fonts/great-vibes-latin-400-normal.woff2', 'vendor/fonts/cormorant-garamond-latin-400-normal.woff2', 'vendor/fonts/cormorant-garamond-latin-600-normal.woff2',

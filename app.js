@@ -1035,7 +1035,7 @@ PANELS['Super Resolution'] = p => {
         const src = await photoSource(curPhoto, SR_LIMIT);
         const out = await superResolution(src.canvas, { target: sr.target, fast: sr.fast, onProgress: v => {
           const sec = (Date.now() - t0) / 1000, rest = v > 0.03 ? Math.round(sec / v - sec) : 0;
-          bar.set(v, Math.round(v * 100) + '%' + (rest ? ` · circa ${rest < 90 ? rest + ' s' : Math.round(rest / 60) + ' min'}` : ''));
+          bar.set(v, Math.round(v * 100) + '%' + (rest ? ` · circa ${rest < 90 ? rest + ' s' : Math.round(rest / 60) + ' min'}` : '') + ` · ${srBackendName()}`);
         } });
         await saveCurrent();
         const rec = await addDerivedPhoto(out, ` (SR ${out.width}px)`);

@@ -8,9 +8,15 @@
      da cui si sceglie "Salva immagine" per metterle in Foto. */
 
 const NATIVE_OS = IS_NATIVE ? Capacitor.getPlatform() : 'web';
-const NativeFS = IS_NATIVE ? Capacitor.registerPlugin('Filesystem') : null;
-const NativeShare = IS_NATIVE ? Capacitor.registerPlugin('Share') : null;
-const Luce = NATIVE_OS === 'android' ? Capacitor.registerPlugin('Luce') : null;
+/* Collegamento diretto a un plugin nativo: Luce.save({...}) → Capacitor.nativePromise('Luce', 'save', {...}).
+   (registerPlugin esiste solo nella libreria @capacitor/core, che qui non serve: il ponte nativo basta) */
+const nativePlugin = name => new Proxy({}, {
+  get: (_, method) => method === 'addListener' ? (event, cb) => Capacitor.addListener(name, event, cb)
+    : (opts = {}) => Capacitor.nativePromise(name, method, opts),
+});
+const NativeFS = IS_NATIVE ? nativePlugin('Filesystem') : null;
+const NativeShare = IS_NATIVE ? nativePlugin('Share') : null;
+const Luce = NATIVE_OS === 'android' ? nativePlugin('Luce') : null;
 
 const blobToBase64 = b => new Promise((res, rej) => {
   const r = new FileReader();

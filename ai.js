@@ -52,41 +52,63 @@ function resizeCanvas(src, w, h) {
   return c;
 }
 
-/* Un passaggio del modello ESRGAN a tasselli */
+/* Un passaggio del modello ESRGAN a tasselli.
+   Tutti i tasselli hanno la stessa misura (quelli sul bordo vengono completati con zeri, come fa il modello stesso
+   ai bordi): la GPU prepara i suoi programmi una volta sola invece che per ogni misura diversa. */
 async function srPass(tf, input, mode, scale, onProgress) {
   const model = srCache[mode] ||= await tf.loadLayersModel(SR_MODELS[mode]);
   const w = input.width, h = input.height;
   const ictx = input.getContext('2d', { willReadFrequently: true });
   const out = Object.assign(document.createElement('canvas'), { width: w * scale, height: h * scale });
   const octx = out.getContext('2d');
-  const T = 128, P = 10, tiles = Math.ceil(w / T) * Math.ceil(h / T);
+  // la foto viene divisa in parti uguali non più grandi di srTile (niente calcolo sprecato su zeri)
+  const P = 12, M = srTile(tf), nx = Math.ceil(w / M), ny = Math.ceil(h / M), TW = Math.ceil(w / nx), TH = Math.ceil(h / ny), tiles = nx * ny;
   let done = 0;
-  for (let ty = 0; ty < h; ty += T) for (let tx = 0; tx < w; tx += T) {
-    const x0 = Math.max(0, tx - P), y0 = Math.max(0, ty - P), x1 = Math.min(w, tx + T + P), y1 = Math.min(h, ty + T + P);
+  for (let ty = 0; ty < h; ty += TH) for (let tx = 0; tx < w; tx += TW) {
+    const x0 = Math.max(0, tx - P), y0 = Math.max(0, ty - P), x1 = Math.min(w, tx + TW + P), y1 = Math.min(h, ty + TH + P);
     const img = ictx.getImageData(x0, y0, x1 - x0, y1 - y0);
-    const tw = Math.min(T, w - tx), th = Math.min(T, h - ty);
+    const tw = Math.min(TW, w - tx), th = Math.min(TH, h - ty);
+    const pt = P - (ty - y0), pl = P - (tx - x0);                  // zeri mancanti sopra / a sinistra
     const res = tf.tidy(() => {
-      const t = tf.browser.fromPixels(img).toFloat().expandDims(0);
+      const t = tf.browser.fromPixels(img).toFloat()
+        .pad([[pt, TH + 2 * P - pt - (y1 - y0)], [pl, TW + 2 * P - pl - (x1 - x0)], [0, 0]]).expandDims(0);
       const y = model.predict(t);
-      return y.slice([0, (ty - y0) * scale, (tx - x0) * scale, 0], [1, th * scale, tw * scale, 3]).clipByValue(0, 255);
+      return y.slice([0, P * scale, P * scale, 0], [1, th * scale, tw * scale, 3]).clipByValue(0, 255);
     });
     const data = await res.data(); res.dispose();
     const id = octx.createImageData(tw * scale, th * scale);
     for (let i = 0, j = 0; i < data.length; i += 3, j += 4) { id.data[j] = data[i]; id.data[j + 1] = data[i + 1]; id.data[j + 2] = data[i + 2]; id.data[j + 3] = 255; }
     octx.putImageData(id, tx * scale, ty * scale);
     onProgress(++done / tiles);
-    if (done % 4 === 0) await nextFrame();
+    await nextFrame();
   }
   return out;
 }
+/* Lato dei tasselli: grandi sulla GPU (meno passaggi), piccoli sul processore */
+const srTile = tf => (tf.getBackend() === 'cpu' ? 96 : tf.getBackend() === 'webgpu' ? 320 : 256);
+
+/* Motore di calcolo: WebGPU se il telefono lo offre (molto più veloce), altrimenti WebGL, in ultimo il processore */
+async function srBackend() {
+  await loadScript('vendor/tf.min.js');
+  const tf = window.tf;
+  if (srBackend.done) return tf;
+  if (navigator.gpu) {
+    try {
+      await loadScript('vendor/tf-backend-webgpu.min.js');
+      if (await tf.setBackend('webgpu')) { await tf.ready(); srBackend.done = true; return tf; }
+    } catch (e) { console.warn('WebGPU non disponibile', e); }
+  }
+  try { if (!await tf.setBackend('webgl')) throw new Error('webgl'); } catch { await tf.setBackend('cpu'); }
+  await tf.ready();
+  srBackend.done = true;
+  return tf;
+}
+const srBackendName = () => ({ webgpu: 'GPU (WebGPU)', webgl: 'GPU (WebGL)', cpu: 'processore (lento)' })[window.tf?.getBackend()] || '';
 
 /* src: canvas con l'originale a piena risoluzione; target: lato lungo voluto in pixel.
    fast = modello leggero per i passaggi ×2. Restituisce un canvas. */
 async function superResolution(src, { target, fast = false, onProgress = () => {} } = {}) {
-  await loadScript('vendor/tf.min.js');
-  const tf = window.tf;
-  try { await tf.setBackend('webgl'); } catch { await tf.setBackend('cpu'); }
-  await tf.ready();
+  const tf = await srBackend();
   const plan = srPlan(src.width, src.height, target);
   // peso di ogni passaggio = pixel elaborati, per una barra di avanzamento uniforme
   const passes = plan.steps.filter(s => s.scale), tot = passes.reduce((a, s) => a + s.from * s.from, 0) || 1;
